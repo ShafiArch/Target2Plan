@@ -2,7 +2,7 @@
 // session load / export, and the hand-offs between stages.
 import { store } from "./store.js";
 import { runtime } from "./runtime.js";
-import { h, THEMES, THEME_LABELS, downloadBlob, toast } from "./ui/common.js";
+import { h, THEMES, THEME_LABELS, downloadBlob, toast, refreshSwatches } from "./ui/common.js";
 import { mountInputs } from "./ui/stage0.js";
 import { mountArea } from "./ui/stage1.js";
 import { mountZones } from "./ui/stage2.js";
@@ -13,7 +13,7 @@ const STAGES = [
   { id: "inputs", num: "00", title: "Inputs", sub: "Rooms · geometry · site · targets", width: 460 },
   { id: "area", num: "01", title: "Area Distribution", sub: "Pick one variation", width: 860 },
   { id: "zones", num: "02", title: "Zone Assignments", sub: "v13 model · targets QVCI / AQI", width: 860 },
-  { id: "connectivity", num: "03", title: "Connectivity", sub: "Nodes & edges per plan", width: 1080 },
+  { id: "connectivity", num: "03", title: "Connectivity", sub: "Nodes & edges per plan", width: 820 },
   { id: "schematic", num: "04", title: "Schematic Design", sub: "Areas × zones × connectivity", width: 1080 },
 ];
 
@@ -28,6 +28,7 @@ function setTheme(t) {
   document.documentElement.dataset.theme = t;
   themeBtn.textContent = THEME_LABELS[t];
   try { localStorage.setItem("t2p.theme", t); } catch { /* storage unavailable */ }
+  refreshSwatches();
   store.emit("theme");
 }
 

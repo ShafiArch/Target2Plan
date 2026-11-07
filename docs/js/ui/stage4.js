@@ -3,16 +3,17 @@
 // replayed as an animation; the AQI x QVCI Pareto front; exports.
 import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput } from "./common.js";
 import { makeSchematics, paretoFrontIndices } from "../engine/schematic.js";
-import { getSynthesis, paintFrame } from "./schematicPaint.js";
+import { getSynthesis, paintFrame, commonFit, roomAt } from "./schematicPaint.js";
 import { zipBlob, encodeGIF, encodeMP4 } from "./exporters.js";
 import { openSchematicDetail } from "./detail.js";
+import { showRoomPopup, closeRoomPopup } from "./roomPopup.js";
 
 const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* ignore */ } };
 
 export function mountSchematic(body, { store, goto }) {
   const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furniture: LS("schFurn", true), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
-  let cards = [], lastSch = null, hoverIdx = null;
+  let cards = [], lastSch = null, hoverIdx = null, fitDims = null;
   const grid = h("div.grid4");
   const gridWrap = h("div.schem-grid-wrap", grid);
 
@@ -60,18 +61,30 @@ export function mountSchematic(body, { store, goto }) {
   function card(s, sel) {
     const cv = h("canvas");
     const c = s.computed || {};
-    const el = h("div.plain-card.schem-card", { on: { click: () => toggle(s.plan_index), dblclick: () => openSchematicDetail(s, store, opt) } },
+    const el = h("div.plain-card.schem-card", { on: { click: () => toggle(s.plan_index), dblclick: () => { closeRoomPopup(); openSchematicDetail(s, store, opt); } } },
       h("div.plain-head", h("span.idx", `#${pad2(s.plan_index)}`), sel ? h("span.badge", "✓ SELECTED") : null),
       h("div.plain-body", { style: { padding: "4px" } }, cv),
       h("div.plain-foot.schem-foot", h("span", h("span.ml", "Q"), h("span.mv", Number(c.qvci ?? 0).toFixed(2))), h("span", h("span.ml", "A"), h("span.mv", Number(c.aqi ?? 0).toFixed(2))), h("span.grow"), h("span.ml", `${(s.rooms || []).length} rooms`)));
-    let frameIdx = -1, timer = null;
+    let frameIdx = -1, timer = null, T = null, shown = null;
     el.draw = () => {
       const syn = getSynthesis(s);
       const { ctx, w, h: H } = fitCanvas(cv);
       if (!syn.frames.length) return;
-      const frame = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[Math.min(frameIdx, syn.frames.length - 1)];
-      paintFrame(ctx, s, syn, frame, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showCaption: frameIdx >= 0, showCompass: !opt.planOnly });
+      shown = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[Math.min(frameIdx, syn.frames.length - 1)];
+      T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showCaption: frameIdx >= 0, showCompass: !opt.planOnly, fitDims });
     };
+    // a click on a room opens its card (as in the desktop app); elsewhere it selects the plan
+    cv.addEventListener("click", (e) => {
+      const b = cv.getBoundingClientRect(), room = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top);
+      if (!room) return;
+      e.stopPropagation();
+      showRoomPopup(room, e.clientX, e.clientY, store.inputs);
+    });
+    cv.addEventListener("mousemove", (e) => {
+      const b = cv.getBoundingClientRect();
+      const tip = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top) ? "Click for room details · double-click for the plan" : "";
+      if (cv.title !== tip) cv.title = tip;
+    });
     el.replay = () => {
       clearInterval(timer);
       const syn = getSynthesis(s);
@@ -85,7 +98,7 @@ export function mountSchematic(body, { store, goto }) {
   }
 
   function render() {
-    cards.forEach((c) => c.stop()); clear(grid); cards = [];
+    closeRoomPopup(); cards.forEach((c) => c.stop()); clear(grid); cards = [];
     const st3 = store.stage3, st4 = store.stage4;
     gridWrap.querySelectorAll(".empty-state").forEach((e) => e.remove());
     if (!st3.selected_idxs.length) { gridWrap.prepend(emptyState("Waiting for connectivity selection", "Complete Stage 3 (select one or more connectivity graphs) to synthesise schematic plans.")); pareto.classList.add("hidden"); refreshToolbar(); return; }
@@ -96,14 +109,28 @@ export function mountSchematic(body, { store, goto }) {
     }
     pareto.classList.remove("hidden");
     const sel = new Set(st4.selected_idxs);
+    fitDims = commonFit(st4.schematics);
     for (const s of st4.schematics) { const c = card(s, sel.has(s.plan_index)); cards.push(c); grid.append(c); }
+    sizeCards();
     requestAnimationFrame(() => { cards.forEach((c) => c.replay()); drawPareto(); });
     applyView(false);
     refreshToolbar();
   }
 
+  // Card height follows the plans' proportions (at the shared scale), so the
+  // plans fill the view without wide empty bands above and below them.
+  function sizeCards() {
+    if (!cards.length || !fitDims) return;
+    const cw = cards[0].querySelector(".plain-body").clientWidth - 8;
+    if (cw <= 0) return;
+    const m = Math.max(6, cw * 0.035) + (opt.planOnly ? 0 : 13);
+    const sw = Math.min(...fitDims.map(([W]) => (cw - 2 * m) / W));
+    const need = sw * Math.max(...fitDims.map(([, H]) => H)) + 2 * m;
+    grid.style.setProperty("--schem-canvas-h", `${Math.round(Math.max(0.55 * cw, Math.min(1.15 * cw, need)))}px`);
+  }
   function applyView(redraw = true) {
     bodyWrap.classList.toggle("plan-only", opt.planOnly);
+    sizeCards();
     if (redraw) { cards.forEach((c) => c.draw()); drawPareto(); }
   }
   function replayAll() { cards.forEach((c) => c.replay()); }
@@ -173,7 +200,7 @@ export function mountSchematic(body, { store, goto }) {
     ctx.lineWidth = 1 * k;
     for (const v of qt) { ctx.beginPath(); ctx.moveTo(X(v), py + side); ctx.lineTo(X(v), py + side + 4 * k); ctx.stroke(); }
     for (const v of at) { ctx.beginPath(); ctx.moveTo(px - 4 * k, Y(v)); ctx.lineTo(px, Y(v)); ctx.stroke(); }
-    ctx.font = `700 ${11 * k}px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = `600 ${10.5 * k}px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("QVCI →", px + side / 2, py + side + 21 * k);
     ctx.save(); ctx.translate(px - 48 * k, py + side / 2); ctx.rotate(-Math.PI / 2); ctx.fillText("AQI →", 0, 0); ctx.restore();
     ctx.font = `${9.5 * k}px ${MONO}`; ctx.fillStyle = P.ink2;
@@ -232,7 +259,7 @@ export function mountSchematic(body, { store, goto }) {
   pcv.addEventListener("pointerleave", () => { if (hoverIdx != null) { hoverIdx = null; drawPareto(); } });
   pcv.addEventListener("click", () => { if (hoverIdx != null) toggle(hoverIdx); });
   onResize(pcv.parentElement, drawPareto);
-  onResize(gridWrap, () => cards.forEach((c) => c.draw()));
+  onResize(gridWrap, () => { sizeCards(); cards.forEach((c) => c.draw()); });
 
   async function saveParetoImage() {
     const { cv, ctx } = offscreen(600, 600, 4), P = palette();
@@ -250,7 +277,7 @@ export function mountSchematic(body, { store, goto }) {
 
   function renderPlanPNG(s, size = 900, label = true) {
     const { cv, ctx } = offscreen(size, size + 40, 2), P = palette(), syn = getSynthesis(s);
-    paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: label, fontScale: size / 320 });
+    paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: label, fontScale: size / 400 });
     const c = s.computed;
     ctx.font = `${13}px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.fillText(`#${pad2(s.plan_index)}   QVCI ${Number(c.qvci).toFixed(3)}   AQI ${Number(c.aqi).toFixed(3)}   ${(s.rooms || []).length} rooms`, 16, size + 20);
@@ -276,9 +303,10 @@ export function mountSchematic(body, { store, goto }) {
     ctx.fillText("Target2Plan · schematic batch", 14, 18);
     ctx.font = `11px ${FONT}`; ctx.fillStyle = P.ink2;
     ctx.fillText(`Targets QVCI ${tq.toFixed(2)} · AQI ${ta.toFixed(2)} · top ${ranked.length} of ${st.schematics.length} by distance to target`, 14, 38);
+    const sheetFit = commonFit(ranked);
     ranked.forEach((s, i) => {
       const x = (i % cols) * cell, y = head + Math.floor(i / cols) * (cell + 22), syn = getSynthesis(s);
-      ctx.save(); ctx.translate(x, y); paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], cell, cell, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, fontScale: 1.05 }); ctx.restore();
+      ctx.save(); ctx.translate(x, y); paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], cell, cell, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, fontScale: 1.05, fitDims: sheetFit }); ctx.restore();
       ctx.font = `11px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "center";
       ctx.fillText(`#${pad2(s.plan_index)}  Q ${s.computed.qvci.toFixed(2)}  A ${s.computed.aqi.toFixed(2)}`, x + cell / 2, y + cell + 8);
     });
@@ -296,7 +324,7 @@ export function mountSchematic(body, { store, goto }) {
       const drawFrame = (ctx, i) => {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.fillStyle = P.surface; ctx.fillRect(0, 0, size, size);
-        paintFrame(ctx, s, syn, syn.frames[i], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: true, showCaption: true, fontScale: Math.max(1, size / 320) });
+        paintFrame(ctx, s, syn, syn.frames[i], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: true, showCaption: true, fontScale: Math.max(1, size / 400) });
       };
       toast(`Encoding plan #${pad2(s.plan_index)} (${k + 1} of ${list.length})…`, 60000);
       files.push({ name: `schematic_synthesis_${pad2(s.plan_index)}.gif`, blob: await encodeGIF(n, size, drawFrame, delays) });

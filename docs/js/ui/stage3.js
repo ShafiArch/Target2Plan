@@ -14,20 +14,29 @@ function eased(g, frame) {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
-/** Paint a graph at animation step `frame` into a w x h area (animated_graph.paintEvent). */
+/** Paint a graph at animation step `frame` into a w x h area (animated_graph.paintEvent).
+ *  The zone grid and every node position (start and end) are framed tightly and centred. */
 export function drawGraph(ctx, g, w, h, frame, P = palette(), fs = 1) {
-  const src = Number(g.canvas_size || 200), side = Math.min(w, h), s = side / src, ox = (w - side) / 2, oy = (h - side) / 2;
-  const sc = (x, y) => [ox + x * s, oy + y * s];
-  const nodeR = Math.max(3, side / 40);
+  const src = Number(g.canvas_size || 200);
   const [rxs, rys, rws, rhs] = g.plan_rect || [0, 0, src, src];
-  const [rx, ry] = sc(rxs, rys), [rx2, ry2] = sc(rxs + rws, rys + rhs), rw = rx2 - rx, rh = ry2 - ry;
-  ctx.font = `${7.5 * fs}px ${FONT}`; ctx.fillStyle = P.a("ink3", 0.55); ctx.textAlign = "left"; ctx.textBaseline = "top";
-  for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) ctx.fillText(`Z${row * 3 + col + 1}`, rx + (col * rw) / 3 + 2, ry + (row * rh) / 3 + 1);
-  ctx.font = `700 ${9 * fs}px ${FONT}`; ctx.fillStyle = P.a("ink3", 0.85);
-  ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText("N", rx + rw / 2, ry - 2);
-  ctx.textBaseline = "top"; ctx.fillText("S", rx + rw / 2, ry + rh + 2);
-  ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText("E", rx + rw + 3, ry + rh / 2);
-  ctx.textAlign = "right"; ctx.fillText("W", rx - 3, ry + rh / 2);
+  let x0 = rxs, y0 = rys, x1 = rxs + rws, y1 = rys + rhs;
+  for (const n of g.nodes) {
+    if (n.is_direction) continue;
+    for (const [x, y] of [[n.x, n.y], [n.x_start ?? n.x, n.y_start ?? n.y]]) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  }
+  const nodeR = Math.max(2.5, Math.min(6, Math.min(w, h) / 30)), pad = nodeR + 11 * fs;
+  const s = Math.max(1e-6, Math.min((w - 2 * pad) / Math.max(x1 - x0, 1e-6), (h - 2 * pad) / Math.max(y1 - y0, 1e-6)));
+  const ox = w / 2 - ((x0 + x1) / 2) * s, oy = h / 2 - ((y0 + y1) / 2) * s;
+  const sc = (x, y) => [ox + x * s, oy + y * s];
+  const [rx, ry] = sc(rxs, rys), rw = rws * s, rh = rhs * s, [bx0, by0] = sc(x0, y0), [bx1, by1] = sc(x1, y1);
+  ctx.font = `400 ${7 * fs}px ${FONT}`; ctx.fillStyle = P.a("ink3", 0.6); ctx.textAlign = "left"; ctx.textBaseline = "top";
+  for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) ctx.fillText(`Z${row * 3 + col + 1}`, Math.round(rx + (col * rw) / 3 + 2), Math.round(ry + (row * rh) / 3 + 2));
+  // compass letters just outside everything drawn, so no node covers them
+  ctx.font = `500 ${8 * fs}px ${FONT}`; ctx.fillStyle = P.a("ink3", 0.9);
+  ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText("N", Math.round(rx + rw / 2), Math.round(by0 - nodeR - 2));
+  ctx.textBaseline = "top"; ctx.fillText("S", Math.round(rx + rw / 2), Math.round(by1 + nodeR + 2));
+  ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText("E", Math.round(bx1 + nodeR + 3), Math.round(ry + rh / 2));
+  ctx.textAlign = "right"; ctx.fillText("W", Math.round(bx0 - nodeR - 3), Math.round(ry + rh / 2));
   const e = eased(g, frame);
   const pos = new Map(g.nodes.map((n) => [n.id, sc(n.x_start + (n.x - n.x_start) * e, n.y_start + (n.y - n.y_start) * e)]));
   if (hasMoves(g) && e > 0) {

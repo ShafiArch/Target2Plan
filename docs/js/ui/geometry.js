@@ -216,9 +216,9 @@ export class GeometryCanvas {
       ctx.save();
       ctx.beginPath(); ctx.rect(x, y, rw, rh); ctx.clip();
       ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.font = `600 11px ${FONT}`;
+      ctx.font = `500 10.5px ${FONT}`;
       ctx.fillText(`${ROOM_LABELS[r.type] || r.type} ${r.id.split("_").pop()}`, x + rw / 2, y + 4);
-      ctx.font = `9.5px ${FONT}`; ctx.textBaseline = "middle";
+      ctx.font = `9px ${FONT}`; ctx.textBaseline = "middle";
       const ar = r.h > 0 ? r.w / r.h : 1;
       const lines = [this.fmtArea(r.w * r.h), `${this.fmtLen(r.w)} × ${this.fmtLen(r.h)}`, `ar ${ar.toFixed(2)}`];
       lines.forEach((t, i) => ctx.fillText(t, x + rw / 2, y + rh / 2 + (i - 1) * 12));
@@ -250,7 +250,7 @@ function shade(hex, f) {
 export function roomPalette(geom) {
   const wrap = h("div.palette", h("span.sub", "Drag a room onto the canvas:"));
   for (const rt of ["living", "bedroom", "kitchen", "bathroom", "balcony"]) {
-    const chip = h("span.room-chip", { title: `Drag onto the canvas to add a ${rt} (${DEFAULT_AREA_M2[rt]} m² square to start)` }, h("span.swatch", { style: { background: roomColor(rt) } }), ROOM_LABELS[rt]);
+    const chip = h("span.room-chip", { title: `Drag onto the canvas to add a ${rt} (${DEFAULT_AREA_M2[rt]} m² square to start)` }, h("span.swatch", { "data-rt": rt, style: { background: roomColor(rt) } }), ROOM_LABELS[rt]);
     chip.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       const start = [e.clientX, e.clientY];

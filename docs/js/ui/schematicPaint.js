@@ -10,6 +10,61 @@ export function getSynthesis(s) {
   return s._syn;
 }
 
+// ── framing ─────────────────────────────────────────────────────────
+// Plans are framed by their own extent instead of the reference box, so they
+// sit centred in the view. Every frame is framed by everything still to come
+// (that frame up to the finished plan), which zooms in smoothly while the
+// rooms compact and ends exactly on the finished plan.
+const FRAME_PAD_M = 0.75;   // exterior wall (0.25 m) plus the entrance marker
+
+function shapeExtent(s) {
+  if (s.kind === "rect" && "w" in s) {
+    const m = Number(s.morph ?? 1), r = s.r ?? Math.sqrt((s.w * s.h) / Math.PI);
+    const ww = r * 2 + (s.w - r * 2) * m, hh = r * 2 + (s.h - r * 2) * m;
+    return [s.cx - ww / 2, s.cy - hh / 2, s.cx + ww / 2, s.cy + hh / 2];
+  }
+  return [s.cx - s.r, s.cy - s.r, s.cx + s.r, s.cy + s.r];
+}
+const union = (a, b) => (!a ? b : !b ? a : [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
+
+/** {final, suffix[i]}: padded extents of the finished plan and of frames i..end. */
+export function planBounds(syn) {
+  if (syn._bounds) return syn._bounds;
+  const n = syn.frames.length, pad = FRAME_PAD_M * syn.metre;
+  const [bx, by, bw, bh] = syn.box;
+  const padded = (b) => (b ? [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad] : [bx, by, bx + bw, by + bh]);
+  const suffix = new Array(n);
+  let acc = null;
+  for (let i = n - 1; i >= 0; i--) {
+    for (const s of syn.frames[i].shapes || []) acc = union(acc, shapeExtent(s));
+    suffix[i] = padded(acc);
+  }
+  const out = { final: n ? suffix[n - 1] : padded(null), suffix };
+  Object.defineProperty(syn, "_bounds", { value: out, enumerable: false });
+  return out;
+}
+
+/** Sizes of the finished plans, so a set of cards shares one scale (the largest at which every plan fits). */
+export function commonFit(schematics) {
+  const dims = schematics.map((s) => { const b = planBounds(getSynthesis(s)).final; return [b[2] - b[0], b[3] - b[1]]; }).filter(([w, h]) => w > 0 && h > 0);
+  return dims.length ? dims : null;
+}
+
+/** The room under canvas point (x, y) for a transform returned by paintFrame. */
+export function roomAt(frame, T, x, y) {
+  if (!frame || !T) return null;
+  const px = (x - T.ox) / T.scale, py = (y - T.oy) / T.scale;
+  const shapes = frame.shapes || [];
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i];
+    if (s.kind === "rect" && "w" in s) {
+      const [x0, y0, x1, y1] = shapeExtent(s);
+      if (px >= x0 && px <= x1 && py >= y0 && py <= y1) return s.room || null;
+    } else if ((px - s.cx) ** 2 + (py - s.cy) ** 2 <= s.r * s.r) return s.room || null;
+  }
+  return null;
+}
+
 function cornerFree(wl, syn, end) {
   const x = end === "start" ? wl.x1 : wl.x2, y = end === "start" ? wl.y1 : wl.y2, rid = wl.rooms[0];
   const horizontal = Math.abs(wl.y1 - wl.y2) < 1e-6;
@@ -21,14 +76,20 @@ function cornerFree(wl, syn, end) {
   return 0;
 }
 
+/** Paint one frame centred in a w x h view. `fitDims` (plan sizes from
+ *  commonFit) gives several cards the same scale; without it the finished plan
+ *  fills the view. */
 export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
-  const { showEdges = true, showLabels = false, showWalls = true, showFurniture = true, showCaption = false, fontScale = 1, showCompass = true } = o;
-  const [rx, ry, rw, rh] = syn.box;
-  const margin = Math.max(8, Math.min(w, h) * 0.06);
-  const availW = Math.max(1, w - 2 * margin), availH = Math.max(1, h - 2 * margin - (showCaption ? 12 * fontScale : 0));
-  const scale = rw > 0 && rh > 0 ? Math.min(availW / rw, availH / rh) : 1;
-  const bwPx = rw * scale, bhPx = rh * scale, bxPx = (w - bwPx) / 2, byPx = margin + (availH - bhPx) / 2;
-  const ox = bxPx - rx * scale, oy = byPx - ry * scale;
+  const { showEdges = true, showLabels = false, showWalls = true, showFurniture = true, showCaption = false, fontScale = 1, showCompass = true, fitDims = null } = o;
+  const B = planBounds(syn);
+  const view = B.suffix[Math.max(0, syn.frames.indexOf(frame))] || B.final;
+  const edge = showCompass ? 13 * fontScale : 0;
+  const margin = Math.max(6, Math.min(w, h) * 0.035) + edge;
+  const availW = Math.max(1, w - 2 * margin), availH = Math.max(1, h - 2 * margin);
+  const fit = (bw, bh) => Math.min(availW / Math.max(bw, 1e-9), availH / Math.max(bh, 1e-9));
+  const sizes = fitDims && fitDims.length ? fitDims : [[B.final[2] - B.final[0], B.final[3] - B.final[1]]];
+  const scale = Math.min(...sizes.map(([fw, fh]) => fit(fw, fh)), fit(view[2] - view[0], view[3] - view[1]));
+  const ox = w / 2 - ((view[0] + view[2]) / 2) * scale, oy = h / 2 - ((view[1] + view[3]) / 2) * scale;
   const TX = (x) => ox + x * scale, TY = (y) => oy + y * scale;
   const shapes = frame.shapes || [];
   const byId = new Map(shapes.map((s) => [s.room_id, s]));
@@ -137,11 +198,14 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
       ctx.strokeStyle = P.ink2; ctx.lineWidth = Math.max(0.5, (0.6 * scale) / 2);
       for (const wl of rails) { ctx.beginPath(); ctx.moveTo(TX(wl.x1), TY(wl.y1)); ctx.lineTo(TX(wl.x2), TY(wl.y2)); ctx.stroke(); }
     }
-    // 4. openings: windows (three thin lines), doors (leaf + swing), entrance marker
+    // 4. openings: windows (three hairlines), doors (leaf + swing), entrance marker.
+    // Thin, lighter ink so the openings read as hairlines next to the walls.
+    const pxm = metre * scale;
+    const winW = Math.max(0.3, pxm * 0.005), leafW = Math.max(0.4, pxm * 0.008), swingW = Math.max(0.3, pxm * 0.005);
     for (const op of opens) {
       const [nx, ny] = op.wall.out;
       if (op.kind === "window") {
-        ctx.strokeStyle = P.ink2; ctx.lineWidth = 0.5;
+        ctx.strokeStyle = P.a("ink2", 0.8); ctx.lineWidth = winW;
         for (const f of [0, 0.5, 1]) {
           const off = tExt * f;
           ctx.beginPath(); ctx.moveTo(TX(op.x1 + nx * off), TY(op.y1 + ny * off)); ctx.lineTo(TX(op.x2 + nx * off), TY(op.y2 + ny * off)); ctx.stroke();
@@ -155,11 +219,11 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
         const ux = (fx - hx) / dw, uy = (fy - hy) / dw;
         let px = -uy, py = ux;
         if ((ix - hx) * px + (iy - hy) * py < 0) { px = uy; py = -ux; }
-        ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(0.6, (0.8 * scale) / 2);
+        ctx.strokeStyle = P.ink2; ctx.lineWidth = leafW;
         ctx.beginPath(); ctx.moveTo(TX(hx), TY(hy)); ctx.lineTo(TX(hx + px * dw), TY(hy + py * dw)); ctx.stroke();
         const a0 = Math.atan2(py, px), a1 = Math.atan2(uy, ux);
         const delta = ((a1 - a0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
-        ctx.strokeStyle = P.ink2; ctx.lineWidth = Math.max(0.4, (0.5 * scale) / 2);
+        ctx.strokeStyle = P.a("ink3", 0.85); ctx.lineWidth = swingW;
         ctx.beginPath(); ctx.arc(TX(hx), TY(hy), dw * scale, a0, a0 + delta, delta < 0); ctx.stroke();
         if (op.kind === "entry") {
           const mx = (hx + fx) / 2, my = (hy + fy) / 2, s_ = 0.35 * metre;
@@ -184,38 +248,53 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     }
   }
 
-  // 6. labels (detail view, exports)
+  // 6. labels (detail view, exports): plain ink snapped to whole pixels, no halo.
+  // A small tag in the room's own colour (clipped to the room) keeps furniture
+  // lines out from under the text.
   if (showLabels) {
+    const fs1 = `500 ${8.5 * fontScale}px ${FONT}`, fs2 = `400 ${7.5 * fontScale}px ${FONT}`, k = fontScale;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (const s of shapes) {
       const room = s.room || {}, qv = room.quality_view_score, aq = room.acoustic_score;
       const hasScores = qv != null && aq != null && room.zone_assignment != null;
-      const cx = TX(s.cx), cy = TY(s.cy);
-      halo(ctx, s.room_id.replace(/_/g, " "), cx, cy + (hasScores ? -5 : 0) * fontScale, `600 ${9 * fontScale}px ${FONT}`);
-      if (hasScores) halo(ctx, `QV ${Number(qv).toFixed(2)} · AQ ${Number(aq).toFixed(2)}`, cx, cy + 7 * fontScale, `${8 * fontScale}px ${FONT}`);
+      const name = s.room_id.replace(/_/g, " "), sub = hasScores ? `QV ${Number(qv).toFixed(2)} · AQ ${Number(aq).toFixed(2)}` : null;
+      const cx = Math.round(TX(s.cx)), cy = Math.round(TY(s.cy));
+      ctx.font = fs1; let tw = ctx.measureText(name).width;
+      if (sub) { ctx.font = fs2; tw = Math.max(tw, ctx.measureText(sub).width); }
+      const th = (sub ? 21 : 12) * k, [x0, y0, x1, y1] = shapeExtent(s);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(TX(x0), TY(y0), (x1 - x0) * scale, (y1 - y0) * scale); ctx.clip();
+      ctx.fillStyle = over(roomColor(room.room_type), fillAlpha, P.surfaceRgb);
+      ctx.beginPath(); roundRect(ctx, cx - tw / 2 - 3 * k, cy - th / 2, tw + 6 * k, th, 2 * k); ctx.fill();
+      ctx.restore();
+      ctx.font = fs1; ctx.fillStyle = P.ink; ctx.fillText(name, cx, cy + Math.round((sub ? -4.5 : 0) * k));
+      if (sub) { ctx.font = fs2; ctx.fillStyle = P.ink2; ctx.fillText(sub, cx, cy + Math.round(5.5 * k)); }
     }
   }
 
-  // 7. compass + caption
+  // 7. compass letters just outside the plan + caption
   const fs = fontScale;
   if (showCompass) {
-    ctx.font = `700 ${9 * fs}px ${FONT}`; ctx.fillStyle = P.accent;
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.fillText("N", bxPx + bwPx / 2, Math.max(9 * fs, byPx - 3 * fs));
-    ctx.textBaseline = "top"; ctx.fillText("S", bxPx + bwPx / 2, Math.min(h - 11 * fs, byPx + bhPx + 2));
-    ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText("E", Math.min(w - 9 * fs, bxPx + bwPx + 3), byPx + bhPx / 2);
-    ctx.textAlign = "right"; ctx.fillText("W", Math.max(9 * fs, bxPx - 3), byPx + bhPx / 2);
+    const e = edge / 2, mx = Math.round(w / 2), my = Math.round(h / 2);
+    const top = Math.max(e, TY(view[1]) - e), bottom = Math.min(h - e, TY(view[3]) + e);
+    const left = Math.max(e, TX(view[0]) - e), right = Math.min(w - e, TX(view[2]) + e);
+    ctx.font = `600 ${8 * fs}px ${FONT}`; ctx.fillStyle = P.accent; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("N", mx, Math.round(top)); ctx.fillText("S", mx, Math.round(bottom));
+    ctx.fillText("W", Math.round(left), my); ctx.fillText("E", Math.round(right), my);
   }
   if (showCaption && frame.label) {
-    ctx.font = `${9 * fs}px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(frame.label, 6 * fs, h - 8 * fs);
+    ctx.font = `400 ${8 * fs}px ${FONT}`; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    const tw = ctx.measureText(frame.label).width, y = Math.round(h - 8 * fs);
+    ctx.fillStyle = P.a("surface", 0.85); ctx.fillRect(4 * fs, y - 6 * fs, tw + 6 * fs, 12 * fs);
+    ctx.fillStyle = P.ink3; ctx.fillText(frame.label, Math.round(7 * fs), y);
   }
-  return { scale, ox, oy, box: [bxPx, byPx, bwPx, bhPx] };
+  return { scale, ox, oy };
 }
 
-function halo(ctx, str, x, y, font) {
-  ctx.font = font; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.lineJoin = "round"; ctx.strokeText(str, x, y);
-  ctx.fillStyle = "#fff"; ctx.fillText(str, x, y);
-  ctx.lineJoin = "miter";
+/** The opaque colour of `hex` at alpha `a` over the background `bgRgb`. */
+function over(hex, a, bgRgb) {
+  const n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return `rgb(${c.map((v, i) => Math.round(v * a + bgRgb[i] * (1 - a))).join(",")})`;
 }
 
 function roundRect(ctx, x, y, w, h, r) {

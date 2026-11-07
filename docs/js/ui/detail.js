@@ -2,7 +2,8 @@
 import { h, palette, roomColor, fitCanvas, onResize, pad2, fmt, FONT, ZONE_LABELS } from "./common.js";
 import { zoneCellBox, arrangeRoomsInCell } from "../engine/connectivity.js";
 import { planBox } from "./stage2.js";
-import { getSynthesis, paintFrame } from "./schematicPaint.js";
+import { getSynthesis, paintFrame, roomAt } from "./schematicPaint.js";
+import { showRoomPopup, closeRoomPopup } from "./roomPopup.js";
 
 function overlay(content, onClose) {
   const ov = h("div.overlay", { on: { click: (e) => { if (e.target === ov) close(); } } }, content);
@@ -81,11 +82,11 @@ export function openZoneDetail(t, store) {
       arrangeRoomsInCell(rs, x, y, cw, ch).forEach((p, k) => {
         const rad = Math.max(8, Math.min(cw, ch) * 0.14);
         ctx.beginPath(); ctx.arc(p.cx, p.cy, rad, 0, 2 * Math.PI); ctx.fillStyle = roomColor(rs[k].room_type); ctx.fill();
-        ctx.font = `600 10px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "top";
-        ctx.fillText(rs[k].room_id.replace(/_/g, " "), p.cx, p.cy + rad + 3);
+        ctx.font = `500 9.5px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(rs[k].room_id.replace(/_/g, " "), Math.round(p.cx), Math.round(p.cy + rad + 3));
       });
     }
-    ctx.font = `700 11px ${FONT}`; ctx.fillStyle = P.accent; ctx.textAlign = "center";
+    ctx.font = `600 10px ${FONT}`; ctx.fillStyle = P.accent; ctx.textAlign = "center";
     ctx.textBaseline = "bottom"; ctx.fillText("N", bw / 2, -4); ctx.textBaseline = "top"; ctx.fillText("S", bw / 2, bh + 4);
     ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText("E", bw + 5, bh / 2); ctx.textAlign = "right"; ctx.fillText("W", -5, bh / 2);
     ctx.restore();
@@ -102,20 +103,29 @@ export function openSchematicDetail(s, store, opt) {
     barRow("QVCI", Number(c.qvci || 0), tg.present ? tg.qvci : null, rr.qvci), barRow("AQI", Number(c.aqi || 0), tg.present ? tg.aqi : null, rr.aqi),
     c.d_target != null ? kv("Distance to target", Number(c.d_target).toFixed(3)) : null,
     kv("Avg indoor level", `${fmt(c.avg_spl_dB, 1)} dB(A)`), kv("Zone spread", `${c.zone_spread ?? "-"} / 9`));
-  const rows = (s.rooms || []).map((r) => h("tr", h("td", r.room_id.replace(/_/g, " ")), h("td", fmt(r.area_m2, 1)),
+  const rows = (s.rooms || []).map((r) => h("tr.clickable", { title: "Room details", on: { click: (e) => { e.stopPropagation(); showRoomPopup(r, e.clientX, e.clientY, store.inputs); } } },
+    h("td", r.room_id.replace(/_/g, " ")), h("td", fmt(r.area_m2, 1)),
     h("td", r.zone_assignment == null ? "-" : ZONE_LABELS[r.zone_assignment]), h("td", fmt(r.wwr, 2)),
     h("td" + (r.quality_view_score == null ? ".dim" : r.scored && r.quality_view_score >= 0.5 ? ".acc" : ""), fmt(r.quality_view_score, 2)),
     h("td" + (r.acoustic_score == null ? ".dim" : r.scored && r.acoustic_ok ? ".acc" : ""), fmt(r.acoustic_score, 2)),
     h("td" + (r.est_avg_spl_dB == null ? ".dim" : ""), fmt(r.est_avg_spl_dB, 1))));
-  const rooms = h("div.detail-sec", h("div.h", `ROOMS (${(s.rooms || []).length})`),
+  const rooms = h("div.detail-sec", h("div.h", `ROOMS (${(s.rooms || []).length})`), h("div.hint", "Click a room or a row to see its details"),
     h("table.detail-tbl", h("thead", h("tr", h("th", "Room"), h("th", "m²"), h("th", "Zone"), h("th", "WWR"), h("th", "QV"), h("th", "AQ"), h("th", "dB(A)"))), h("tbody", ...rows)));
   const syn = getSynthesis(s);
-  let frameIdx = -1, timer = null;
+  let frameIdx = -1, timer = null, T = null, shown = null;
   const draw = () => {
     const { ctx, w, h: H } = fitCanvas(cv);
-    const frame = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[frameIdx];
-    paintFrame(ctx, s, syn, frame, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: true, showCaption: frameIdx >= 0, fontScale: Math.max(1, w / 420) });
+    shown = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[frameIdx];
+    T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: true, showCaption: frameIdx >= 0, fontScale: Math.max(1, w / 440) });
   };
+  cv.addEventListener("click", (e) => {
+    const b = cv.getBoundingClientRect(), room = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top);
+    if (room) showRoomPopup(room, e.clientX, e.clientY, store.inputs); else closeRoomPopup();
+  });
+  cv.addEventListener("mousemove", (e) => {
+    const b = cv.getBoundingClientRect();
+    cv.style.cursor = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top) ? "pointer" : "";
+  });
   const replay = () => {
     clearInterval(timer);
     frameIdx = 0; draw();
@@ -126,6 +136,6 @@ export function openSchematicDetail(s, store, opt) {
     h("div.detail-head", h("span.h", "PLAN"), h("span.idx", `#${pad2(s.plan_index)}`), h("span.sub", `· ${(s.rooms || []).length} rooms · ${(s.edges || []).length} edges${syn.removed.length ? ` · removed ${syn.removed.join(", ")}` : ""}`), h("span.grow"),
       h("button.link-btn", { on: { click: replay } }, "↻ Replay synthesis"), selectButton(sel(), toggle), h("button.icon-btn", { title: "Close (Esc)", on: { click: () => close() } }, "✕")),
     h("div.detail-body", h("div.detail-canvas", cv), h("div.detail-side", metrics, rooms)));
-  close = overlay(panel, () => { clearInterval(timer); ro.disconnect(); });
+  close = overlay(panel, () => { clearInterval(timer); ro.disconnect(); closeRoomPopup(); });
   const ro = onResize(cv.parentElement, draw);
 }

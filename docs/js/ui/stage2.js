@@ -87,8 +87,8 @@ export function mountZones(body, { store, runtime, goto }) {
     AXES.forEach((a, i) => {
       const x = xs[i];
       ctx.strokeStyle = P.border; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, M.T); ctx.lineTo(x, H - M.B); ctx.stroke();
-      ctx.font = `600 10.5px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.label, x, M.T - 12);
-      ctx.font = `8.5px ${MONO}`; ctx.fillStyle = P.ink3;
+      ctx.font = `500 10px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.label, Math.round(x), M.T - 12);
+      ctx.font = `8px ${MONO}`; ctx.fillStyle = P.ink3;
       ctx.fillText(a.fmt(a.domain[1]), x, M.T - 1 + 0); ctx.fillText(a.fmt(a.domain[0]), x, H - M.B + 8);
       let y0 = null, y1 = null, alpha = 0.15;
       if (brushDrag && brushDrag.key === a.key) { y0 = Math.min(brushDrag.y0, brushDrag.y1); y1 = Math.max(brushDrag.y0, brushDrag.y1); alpha = 0.25; }
@@ -299,7 +299,7 @@ export function renderCardPNG(t, showWeights = false) {
     if (suf) { ctx.font = `9px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.fillText(suf, mx + 74, y); }
   });
   const ty = 146, cz = W - 10 - 36 - 36 - 30, cq = W - 10 - 36, ca = W - 10;
-  ctx.font = `700 9px ${FONT}`; ctx.fillStyle = P.ink3;
+  ctx.font = `600 9px ${FONT}`; ctx.fillStyle = P.ink3;
   ctx.textAlign = "left"; ctx.fillText("ROOM", 10, ty); ctx.textAlign = "center"; ctx.fillText("Z", cz + 15, ty); ctx.textAlign = "right"; ctx.fillText("QV", cq, ty); ctx.fillText("AQ", ca, ty);
   ctx.strokeStyle = P.border; ctx.beginPath(); ctx.moveTo(10, ty + 8); ctx.lineTo(W - 10, ty + 8); ctx.stroke();
   (t.rooms || []).forEach((r, i) => {

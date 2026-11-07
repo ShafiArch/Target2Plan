@@ -7,7 +7,11 @@ export const ROOM_COLORS = {
   storage: "#e3c24a", stair: "#4d4d4d", veranda: "#66c2a5", garden: "#6b6b6b", parking: "#7d7d7d",
   pool: "#5fb0d6", outside: "#6f6f6f",
 };
-export const roomColor = (t) => ROOM_COLORS[t] || ROOM_COLORS.other;
+// The dark theme mutes the kitchen yellow the way the light themes' pastel fills do.
+export const DARK_ROOM_COLORS = { kitchen: "#ddb980" };
+export const roomColor = (t) => (document.documentElement.dataset.theme === "dark" && DARK_ROOM_COLORS[t]) || ROOM_COLORS[t] || ROOM_COLORS.other;
+/** Re-colour the DOM swatches (data-rt) after a theme change. */
+export function refreshSwatches() { document.querySelectorAll(".swatch[data-rt]").forEach((el) => { el.style.background = roomColor(el.dataset.rt); }); }
 export const THEMES = ["offwhite", "white", "dark"];
 export const THEME_LABELS = { offwhite: "Off-white", white: "White", dark: "Dark" };
 export const ZONE_LABELS = { 0: "NW", 1: "N", 2: "NE", 3: "W", 4: "C", 5: "E", 6: "SW", 7: "S", 8: "SE" };
@@ -51,12 +55,15 @@ export const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `
 
 /** Size a canvas to its CSS box at the device pixel ratio; returns {ctx, w, h} in CSS pixels. */
 export function fitCanvas(cv, w = null, hgt = null) {
+  // The backing store matches the displayed size in device pixels exactly
+  // (fractional CSS sizes included), so nothing is resampled and text stays sharp.
   const r = cv.getBoundingClientRect();
-  const cw = Math.max(1, Math.round(w ?? r.width)), ch = Math.max(1, Math.round(hgt ?? r.height));
+  const cw = Math.max(1, w ?? r.width), ch = Math.max(1, hgt ?? r.height);
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
+  const pw = Math.max(1, Math.round(cw * dpr)), ph = Math.max(1, Math.round(ch * dpr));
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
   const ctx = cv.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.setTransform(pw / cw, 0, 0, ph / ch, 0, 0);
   ctx.clearRect(0, 0, cw, ch);
   return { ctx, w: cw, h: ch };
 }
@@ -121,7 +128,7 @@ export function roomSliderRow(type, value, lo, hi, step, onChange) {
   const v = h("span.v", Number(value).toFixed(2));
   const input = h("input", { type: "range", min: lo, max: hi, step, value });
   input.addEventListener("input", () => { v.textContent = Number(input.value).toFixed(2); onChange(Number(input.value)); });
-  const row = h("div.room-row", h("span.swatch", { style: { background: roomColor(type) } }), h("span.n", type[0].toUpperCase() + type.slice(1)), input, v);
+  const row = h("div.room-row", h("span.swatch", { "data-rt": type, style: { background: roomColor(type) } }), h("span.n", type[0].toUpperCase() + type.slice(1)), input, v);
   row.set = (x) => { input.value = x; v.textContent = Number(x).toFixed(2); };
   return row;
 }

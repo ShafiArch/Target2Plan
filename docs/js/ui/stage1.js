@@ -37,7 +37,7 @@ export function mountArea(body, { store, runtime, goto }) {
     const set = (v) => { const n = Math.max(0, Math.min(99, Math.round(Number(v) || 0))); inp.value = n; store.inputs.room_counts[rt] = n; refreshTotals(); store.inputsChanged(); };
     inp.addEventListener("change", () => set(inp.value));
     counterRows[rt] = inp;
-    counts.body.append(h("div.counter", h("span.swatch", { style: { background: roomColor(rt) } }), h("span.field-label", rt), h("button", { on: { click: () => set(Number(inp.value) - 1) } }, "−"), inp, h("button", { on: { click: () => set(Number(inp.value) + 1) } }, "+")));
+    counts.body.append(h("div.counter", h("span.swatch", { "data-rt": rt, style: { background: roomColor(rt) } }), h("span.field-label", rt), h("button", { on: { click: () => set(Number(inp.value) - 1) } }, "−"), inp, h("button", { on: { click: () => set(Number(inp.value) + 1) } }, "+")));
   }
   counts.body.append(h("div.hint", { title: "Balconies are a façade view category rather than a zoned room: they are not placed by the zone model." }, "Balcony joins the plan at the connectivity stage"));
 
@@ -171,15 +171,15 @@ export function mountArea(body, { store, runtime, goto }) {
       else { ctx.arc(cx, cy, Math.max(0.5, rad - 1.5), 0, 2 * Math.PI); ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.stroke(); }
       if (!prefs.labels || rad < 10) continue;
       const label = r.room_type[0].toUpperCase() + r.room_type.slice(1);
-      ctx.font = `${prefs.fill ? "600 " : ""}9px ${FONT}`;
+      ctx.font = `${prefs.fill ? "500 " : ""}9px ${FONT}`;
       if (ctx.measureText(label).width > 2 * rad - 4) continue;
       ctx.fillStyle = prefs.fill ? "#fff" : P.ink3; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       const areaTxt = `${Math.round(r.area).toLocaleString()} ${v.units || "m"}²`;
       ctx.font = `8px ${FONT}`;
       const withArea = rad >= 16 && ctx.measureText(areaTxt).width <= 2 * rad - 4;
-      ctx.font = `${prefs.fill ? "600 " : ""}9px ${FONT}`;
-      ctx.fillText(label, cx, withArea ? cy - 5 : cy);
-      if (withArea) { ctx.font = `8px ${FONT}`; ctx.fillText(areaTxt, cx, cy + 6); }
+      ctx.font = `${prefs.fill ? "500 " : ""}9px ${FONT}`;
+      ctx.fillText(label, Math.round(cx), Math.round(withArea ? cy - 5 : cy));
+      if (withArea) { ctx.font = `8px ${FONT}`; ctx.fillText(areaTxt, Math.round(cx), Math.round(cy + 6)); }
     }
   }
 

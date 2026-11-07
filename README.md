@@ -19,7 +19,7 @@ It follows the desktop workflow, one card per stage:
 2. **Area Distribution**: draw the room program on a grid, or sample area variations from the area model (Farthest point or KMeans selection).
 3. **Zone Assignments**: v13 model decodes (one greedy plus sampled), sorted by distance to the targets, with the design explorer (parallel coordinates with brushing) and a detail view per plan.
 4. **Connectivity**: access graphs from the connectivity model, with secondary rooms relocated next to the room they connect to; animated.
-5. **Schematic Design**: packed plans with walls, doors, windows and furniture, the replayable synthesis, and the Pareto view.
+5. **Schematic Design**: packed plans with walls, doors, windows and furniture, the replayable synthesis, a details card for any room you click, and the Pareto view.
 
 Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), and the whole session as a `.json` file that can be loaded again. Three themes: off-white, white and dark.
 
