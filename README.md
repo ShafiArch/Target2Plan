@@ -66,6 +66,10 @@ python3 tools/export_weights.py assets/checkpoints docs/models
 
 Commit `docs/models/` and Pages picks it up. See `tools/README.md` for the parity checks.
 
+### How Stage 2 uses the targets
+
+The zone assignments are predicted by the trained v13 model, conditioned on the requested QVCI and AQI: the targets enter the decoder at every step, together with the site context and the zones already used. As in the desktop app, the model is decoded 81 times: once greedily (the most likely zone at every step, no randomness) and 80 times by drawing from the model's own predicted probabilities at temperature 0.8. The arrangements are scored with the journal equations and the 12 closest to the targets are shown.
+
 ### How close is it to the desktop app
 
-The web engine is a step-for-step port. Run on the same inputs, the networks agree with PyTorch to about 1e-5 on the logits, greedy decodes are identical, and Stages 2 to 4 (scoring, relocation, packing, walls, openings, furniture, Pareto front) reproduce the desktop output exactly. The one intended difference: the sampled zone decodes in Stage 2 draw their random numbers from a JavaScript generator instead of PyTorch's, so the sampled cards are equivalent draws from the same model rather than the very same draws.
+The web engine is a step-for-step port. On the same inputs the networks agree with PyTorch to about 1e-5 on the logits, so the predicted probabilities and the greedy decode are the same as the desktop's, and Stages 2 to 4 (scoring, relocation, packing, walls, openings, furniture, Pareto front) reproduce the desktop output exactly. The 80 sampled decodes take their random draws from a JavaScript generator instead of PyTorch's. The desktop app draws a fresh set on every run as well, so in both apps the sampled cards change from run to run while coming from the same model probabilities.
