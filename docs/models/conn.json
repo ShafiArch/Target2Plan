@@ -1,0 +1,88 @@
+{
+ "tensors": {
+  "type_emb.weight": {
+   "offset": 0,
+   "shape": [
+    11,
+    128
+   ]
+  },
+  "prev_edge_emb.weight": {
+   "offset": 1408,
+   "shape": [
+    2,
+    16
+   ]
+  },
+  "gru.weight_ih_l0": {
+   "offset": 1440,
+   "shape": [
+    1536,
+    272
+   ]
+  },
+  "gru.weight_hh_l0": {
+   "offset": 419232,
+   "shape": [
+    1536,
+    512
+   ]
+  },
+  "gru.bias_ih_l0": {
+   "offset": 1205664,
+   "shape": [
+    1536
+   ]
+  },
+  "gru.bias_hh_l0": {
+   "offset": 1207200,
+   "shape": [
+    1536
+   ]
+  },
+  "head.weight": {
+   "offset": 1208736,
+   "shape": [
+    1,
+    512
+   ]
+  },
+  "head.bias": {
+   "offset": 1209248,
+   "shape": [
+    1
+   ]
+  }
+ },
+ "meta": {
+  "type_vocab": {
+   "balcony": 0,
+   "bathroom": 1,
+   "bedroom": 2,
+   "garden": 3,
+   "kitchen": 4,
+   "living": 5,
+   "outside": 6,
+   "parking": 7,
+   "stair": 8,
+   "storage": 9,
+   "veranda": 10
+  },
+  "vocab": [
+   "balcony",
+   "bathroom",
+   "bedroom",
+   "garden",
+   "kitchen",
+   "living",
+   "outside",
+   "parking",
+   "stair",
+   "storage",
+   "veranda"
+  ],
+  "epoch": 9,
+  "val_bce": 0.12669158217847265
+ },
+ "count": 1209249
+}
