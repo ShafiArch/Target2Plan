@@ -66,7 +66,7 @@ export async function encodeMP4(nFrames, size, drawFrame, delays, onProgress) {
   let config = null;
   for (const c of configs) { try { if ((await VideoEncoder.isConfigSupported(c)).supported) { config = c; break; } } catch { /* try next */ } }
   if (!config) return null;
-  const { Muxer, ArrayBufferTarget } = await import("../vendor/mp4-muxer.mjs");
+  const { Muxer, ArrayBufferTarget } = await import("../vendor/mp4-muxer.js");
   const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: "avc", width: size, height: size }, fastStart: "in-memory" });
   let failure = null;
   const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failure = e; } });
