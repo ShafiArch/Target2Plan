@@ -1,6 +1,6 @@
 // stage1.js: Area Distribution. Two modes, as in the desktop app:
 //   Draw room program (default): rooms drawn on a dot grid become the variation.
-//   Generate area distributions: the area model samples variations from the
+//   Generate area distributions (optional): the area model samples variations from the
 //   room counts and the plan area (room counts, plan geometry and aspect
 //   ratios sit in a strip above the cards).
 import { h, clear, section, roomSliderRow, numberInput, palette, roomColor, fitCanvas, onResize, emptyState, toast, FONT, pad2, hexA } from "./common.js";
@@ -21,7 +21,7 @@ export function mountArea(body, { store, runtime, goto }) {
 
   // ── mode bar ──────────────────────────────────────────────────────
   const bDraw = h("button", { title: "Draw the rooms and their sizes yourself", on: { click: () => setMode("draw") } }, "Draw room program");
-  const bGen = h("button", { title: "Sample the room areas from the counts and the plan area", on: { click: () => setMode("generate") } }, "Generate area distributions");
+  const bGen = h("button", { title: "Optional: let the trained area model sample the room areas from the room counts and the plan area. Drawing the rooms works without it.", on: { click: () => setMode("generate") } }, "Generate area distributions (optional)");
   const modeHint = h("span.hint");
   const genTop = h("button.btn-primary", { title: "Sample area variations from the room counts and the plan area", on: { click: () => regenerate() } }, "Generate");
   const modeBar = h("div.mode-bar", h("div.mode-pill", bDraw, bGen), modeHint, genTop);
@@ -235,8 +235,8 @@ export function mountArea(body, { store, runtime, goto }) {
     if (busy) { genScroll.append(h("div.empty-state", h("span.busy", "Sampling area variations…"))); return; }
     const isDrawn = candidates.length === 1 && candidates[0].drawn;
     if (!candidates.length || isDrawn) {
-      genScroll.append(emptyState("Ready to generate area distributions",
-        `Sample ${prefs.n} area variations from the inputs you've set up. Each variation distributes the ${Object.values(store.inputs.room_counts).reduce((a, b) => a + Number(b || 0), 0)} rooms across the plan area using slightly different proportions.`,
+      genScroll.append(emptyState("Generate area distributions (optional)",
+        `Sample ${prefs.n} area variations from the inputs you've set up. Each variation distributes the ${Object.values(store.inputs.room_counts).reduce((a, b) => a + Number(b || 0), 0)} rooms across the plan area using slightly different proportions. This step is optional: you can draw the rooms instead.`,
         `Generate ${prefs.n} variations`, () => regenerate()));
       return;
     }
@@ -279,7 +279,7 @@ export function mountArea(body, { store, runtime, goto }) {
     genTools.forEach((el) => el.classList.toggle("hidden", draw));
     drawTools.forEach((el) => el.classList.toggle("hidden", !draw));
     bUse.classList.toggle("hidden", !draw);
-    modeHint.textContent = draw ? "Drop rooms on the canvas and size them by dragging an edge or corner; then press Use this layout." : "Set the room counts and shapes, then sample area variations from the plan area.";
+    modeHint.textContent = draw ? "Drop rooms on the canvas and size them by dragging an edge or corner; then press Use this layout. The area model is optional." : "Optional: set the room counts and shapes, then let the area model sample area variations from the plan area. You can also draw the rooms yourself.";
     if (draw) requestAnimationFrame(() => geom.centre());
   }
   function syncInputs() {

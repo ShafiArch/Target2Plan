@@ -1,6 +1,6 @@
 # Target2Plan
 
-Target2Plan goes from a room program and two plan-level targets, QVCI (Quality View Coverage Index) and AQI (Acoustic Quality Index), to zone assignments, connectivity graphs and schematic floor plans. Three trained models drive it: an area model, a cGAT-AR zone model and a connectivity model.
+Target2Plan goes from a room program and two plan-level targets, QVCI (Quality View Coverage Index) and AQI (Acoustic Quality Index), to zone assignments, connectivity graphs and schematic floor plans. Two trained models are at its core, a cGAT-AR zone model and a connectivity model. A third, the area distribution model, is optional: the room program can be drawn by hand instead.
 
 Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in Architecture / Design Technology program at the University of Washington (Department of Architecture, College of Built Environments), supervised by Tomás Méndez Echenagucia.
 
@@ -18,7 +18,7 @@ The web app runs entirely in the browser. The checkpoints are exported to static
 It follows the desktop workflow, one card per stage:
 
 1. **Inputs**: targets with the reachable range, site conditions per facade, planned WWR, zone capacity, generation parameters.
-2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag), or sample area variations from the area model (Farthest point or KMeans selection).
+2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag), or, optionally, sample area variations from the area distribution model (Farthest point or KMeans selection).
 3. **Zone Assignments**: zone model decodes (one greedy plus sampled), sorted by distance to the targets, with the design explorer (parallel coordinates with brushing) and a detail view per plan.
 4. **Connectivity**: access graphs from the connectivity model, with secondary rooms relocated next to the room they connect to; animated.
 5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front.

@@ -12,7 +12,7 @@ import { openAbout } from "./ui/about.js";
 
 const STAGES = [
   { id: "inputs", num: "00", title: "Inputs", sub: "Rooms · geometry · site · targets", width: 460 },
-  { id: "area", num: "01", title: "Area Distribution", sub: "Pick one variation", width: 860 },
+  { id: "area", num: "01", title: "Area Distribution", sub: "Draw the rooms · area model optional", width: 860 },
   { id: "zones", num: "02", title: "Zone Assignments", sub: "Targets QVCI / AQI", width: 860 },
   { id: "connectivity", num: "03", title: "Connectivity", sub: "Nodes & edges per plan", width: 820 },
   { id: "schematic", num: "04", title: "Schematic Design", sub: "Areas × zones × connectivity", width: 1080 },
