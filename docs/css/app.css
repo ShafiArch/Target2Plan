@@ -336,6 +336,7 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .about-body .cite { font-size: 11px; color: var(--ink3); padding-left: 10px; border-left: 2px solid var(--border); }
 .about-body .credit { font-family: var(--mono); font-size: 10.5px; color: var(--ink); background: var(--surface2); padding: 6px 8px; border-radius: 6px; }
 .about-sec { margin-top: 12px; }
+.about-body .people { margin-bottom: 3px; }
 .about-sec .h { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--ink3); margin-bottom: 6px; }
 
 /* ── room card (click a room in a schematic) ─────────────────────── */

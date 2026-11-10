@@ -2,6 +2,8 @@
 
 Target2Plan goes from a room program and two plan-level targets, QVCI (Quality View Coverage Index) and AQI (Acoustic Quality Index), to zone assignments, connectivity graphs and schematic floor plans. Three trained models drive it: an area model, a cGAT-AR zone model and a connectivity model.
 
+Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in Architecture / Design Technology program at the University of Washington (Department of Architecture, College of Built Environments), supervised by Tomás Méndez Echenagucia.
+
 The repository has two front ends that share the same checkpoints in `assets/checkpoints/`:
 
 | | where | how to run |
@@ -74,6 +76,13 @@ The zone assignments are predicted by the trained zone model, conditioned on the
 
 The web engine is a step-for-step port. On the same inputs the networks agree with PyTorch to about 1e-5 on the logits, so the predicted probabilities and the greedy decode are the same as the desktop's, and Stages 2 to 4 (scoring, relocation, packing, walls, openings, furniture, Pareto front) reproduce the desktop output exactly. The 80 sampled decodes take their random draws from a JavaScript generator instead of PyTorch's. The desktop app draws a fresh set on every run as well, so in both apps the sampled cards change from run to run while coming from the same model probabilities.
 
+## Thesis
+
+* Author: Shafiul Islam
+* Program: Master of Science in Architecture / Design Technology, Department of Architecture, University of Washington
+* Thesis supervisor: Tomás Méndez Echenagucia, Associate Professor, Department of Architecture
+* Thesis reviewer: Mohammad Tabatabaei Manesh, PhD student, Design Technology
+
 ## Credits
 
 The furniture placement in the schematic synthesis is a port of the furniture placement logic in **RGeoLib**, the research geometry library of the Hypergraph project by **Ramon Elias Weber** ([github.com/ramonweber/hypergraph](https://github.com/ramonweber/hypergraph), MIT License). The desktop app (`models/schematic_layout.py`) carries the Python port and the web app (`docs/js/engine/schematic.js`) the JavaScript one. Please also cite:
@@ -87,9 +96,9 @@ The web app's GIF export uses gifenc by Matt DesLauriers and its MP4 export mp4-
 © 2026 Shafiul Islam. The code, the trained model weights, the documentation and the website are licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) (see [LICENSE](LICENSE)):
 
 * anyone may copy, share and adapt this work for non-commercial purposes;
-* full credit is required: name the author and Target2Plan, link to this repository and the license, and say what was changed;
+* full credit is required: name the author, Target2Plan and its origin as a University of Washington MS Design Technology thesis, link to this repository and the license, and say what was changed;
 * commercial use, including selling this work or products and services built on it, is not permitted without separate written permission from the author.
 
-Suggested credit: *Target2Plan by Shafiul Islam, https://github.com/ShafiArch/Target2Plan, licensed under CC BY-NC 4.0.*
+Suggested credit: *Target2Plan by Shafiul Islam (MS in Architecture / Design Technology thesis, University of Washington, supervised by Tomás Méndez Echenagucia), https://github.com/ShafiArch/Target2Plan, licensed under CC BY-NC 4.0.*
 
 Third-party components keep their own licenses ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).

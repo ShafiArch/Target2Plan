@@ -1,6 +1,11 @@
 Target2Plan
 Copyright (c) 2026 Shafiul Islam
 
+Target2Plan was developed as Shafiul Islam's thesis in the Master of Science
+in Architecture / Design Technology program, Department of Architecture,
+University of Washington. Thesis supervisor: Tomás Méndez Echenagucia.
+Thesis reviewer: Mohammad Tabatabaei Manesh.
+
 The code, the trained model weights, the documentation and the website in this
 repository are licensed under the Creative Commons Attribution-NonCommercial
 4.0 International License (CC BY-NC 4.0).
@@ -9,7 +14,8 @@ In short (the legal code below is what applies):
 
   * Anyone may copy, share and adapt this work, in any medium or format, for
     non-commercial purposes.
-  * Full credit is required: name the author (Shafiul Islam) and Target2Plan,
+  * Full credit is required: name the author (Shafiul Islam), Target2Plan and
+    its origin as a University of Washington MS Design Technology thesis,
     link to https://github.com/ShafiArch/Target2Plan and to this license, and
     say whether you changed anything.
   * Commercial use is not permitted. Selling this work, or products or services
@@ -17,8 +23,9 @@ In short (the legal code below is what applies):
 
 Suggested credit:
 
-  Target2Plan by Shafiul Islam, https://github.com/ShafiArch/Target2Plan,
-  licensed under CC BY-NC 4.0.
+  Target2Plan by Shafiul Islam (MS in Architecture / Design Technology thesis,
+  University of Washington, supervised by Tomás Méndez Echenagucia),
+  https://github.com/ShafiArch/Target2Plan, licensed under CC BY-NC 4.0.
 
 License deed: https://creativecommons.org/licenses/by-nc/4.0/
 Legal code:   https://creativecommons.org/licenses/by-nc/4.0/legalcode
