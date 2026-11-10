@@ -1,4 +1,4 @@
-// stage2.js: Zone Assignments. Cards from the v13 model (3 x 3 grid, metrics,
+// stage2.js: Zone Assignments. Cards from the zone model (3 x 3 grid, metrics,
 // room table), multi-select, the design explorer (parallel coordinates) and
 // PNG export of the selected cards.
 import { h, clear, palette, roomColor, fitCanvas, onResize, emptyState, toast, fmt, pad2, debounce, offscreen, canvasBlob, downloadBlob, FONT, MONO, ZONE_LABELS } from "./common.js";
@@ -216,10 +216,10 @@ export function mountZones(body, { store, runtime, goto }) {
     const st1 = store.stage1, st2 = store.stage2;
     errPill.classList.toggle("hidden", !lastError);
     errPill.textContent = lastError ? "Zone model error" : ""; errPill.title = lastError || "";
-    if (busy) { scroll.append(h("div.empty-state", h("span.busy", "Decoding zone assignments with the v13 model…"))); explorer.classList.add("hidden"); refreshToolbar(); return; }
+    if (busy) { scroll.append(h("div.empty-state", h("span.busy", "Decoding zone assignments with the zone model…"))); explorer.classList.add("hidden"); refreshToolbar(); return; }
     if (st1.selected_idx == null) { scroll.append(emptyState("Waiting for area selection", "Complete Stage 1 (pick an area variation or use your drawn layout) to generate zone assignments.")); explorer.classList.add("hidden"); refreshToolbar(); return; }
     if (!st2.tables.length) {
-      scroll.append(emptyState("Ready to generate zone assignments", lastError ? `The model could not run: ${lastError}` : `The v13 model decodes ${store.inputs.params.zone_samples + 1} arrangements (one greedy, ${store.inputs.params.zone_samples} sampled at T = ${store.inputs.params.temperature}) and shows the ${store.inputs.params.n_plans} closest to the targets.`, "Generate zone assignments", () => regenerate()));
+      scroll.append(emptyState("Ready to generate zone assignments", lastError ? `The model could not run: ${lastError}` : `The zone model decodes ${store.inputs.params.zone_samples + 1} arrangements (one greedy, ${store.inputs.params.zone_samples} sampled at T = ${store.inputs.params.temperature}) and shows the ${store.inputs.params.n_plans} closest to the targets.`, "Generate zone assignments", () => regenerate()));
       explorer.classList.add("hidden"); refreshToolbar(); return;
     }
     const t0 = st2.tables[0], tg = t0.targets || {}, rr = t0.reachable || {};

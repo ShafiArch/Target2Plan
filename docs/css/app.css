@@ -97,6 +97,10 @@ canvas { display: block; }
 .chip:hover:not(:disabled) { border-color: rgb(var(--accent-rgb) / 0.45); color: var(--accent); }
 .chip.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .chip:disabled { color: var(--ink3); background: var(--surface); }
+.chip-select { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.chip-select select { border: none; background: transparent; color: inherit; font: inherit; font-size: 11px; line-height: 16px; padding: 0 0 0 2px; margin: -2px 0; cursor: pointer; outline: none; }
+.chip-select select:focus-visible { outline: 1px solid var(--accent); border-radius: 4px; }
+.chip-select option { color: var(--ink); background: var(--surface); }
 .mode-pill { display: inline-flex; background: var(--surface2); border-radius: 11px; padding: 2px; flex: none; }
 .mode-pill button { background: transparent; color: var(--ink2); border: none; border-radius: 9px; padding: 2px 10px; font-size: 11px; line-height: 16px; white-space: nowrap; }
 .mode-pill button:hover { color: var(--accent); }
@@ -204,6 +208,11 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .gen-inputs .section-body { padding-left: 0; }
 .draw-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 12px 6px; gap: 6px; }
 .draw-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.zoom-ctl { display: inline-flex; align-items: center; background: var(--surface2); border-radius: 11px; padding: 2px; flex: none; }
+.zoom-ctl button { background: transparent; color: var(--ink2); border: none; border-radius: 9px; padding: 2px 8px; font-size: 12px; line-height: 16px; min-width: 24px; cursor: pointer; }
+.zoom-ctl button:hover { color: var(--accent); background: var(--surface); }
+.zoom-ctl .zoom-pct { font-family: var(--mono); font-size: 10.5px; min-width: 48px; color: var(--ink); }
+.zoom-ctl .fit { font-size: 11px; }
 .palette { display: flex; align-items: center; gap: 6px; flex: 1; flex-wrap: wrap; }
 .room-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 10px; border: 1px solid rgb(var(--ink-rgb) / 0.14); background: rgb(var(--ink-rgb) / 0.05); font-size: 11px; cursor: grab; user-select: none; touch-action: none; }
 .room-chip:active { cursor: grabbing; }
@@ -315,7 +324,19 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .detail-tbl td.dim { color: var(--ink3); }
 .detail-tbl tr.clickable { cursor: pointer; }
 .detail-tbl tr.clickable:hover td { background: var(--surface2); }
-.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 8px; font-size: 12px; z-index: 60; box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); max-width: 80vw; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); pointer-events: none; background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 8px; font-size: 12px; z-index: 60; box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); max-width: 80vw; }
+
+/* ── About panel ───────────────────────────────────────────────── */
+.about { width: min(640px, 100%); }
+.about-body { padding: 12px 16px 16px; overflow: auto; font-size: 12px; line-height: 1.55; color: var(--ink2); }
+.about-body p { margin: 0 0 8px; }
+.about-body a { color: var(--accent); text-decoration: none; }
+.about-body a:hover { text-decoration: underline; }
+.about-body b { color: var(--ink); font-weight: 600; }
+.about-body .cite { font-size: 11px; color: var(--ink3); padding-left: 10px; border-left: 2px solid var(--border); }
+.about-body .credit { font-family: var(--mono); font-size: 10.5px; color: var(--ink); background: var(--surface2); padding: 6px 8px; border-radius: 6px; }
+.about-sec { margin-top: 12px; }
+.about-sec .h { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--ink3); margin-bottom: 6px; }
 
 /* ── room card (click a room in a schematic) ─────────────────────── */
 .room-pop { position: fixed; z-index: 80; width: 262px; max-width: calc(100vw - 16px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px 9px; box-shadow: 0 12px 32px rgb(0 0 0 / 0.18); font-size: 10.5px; }

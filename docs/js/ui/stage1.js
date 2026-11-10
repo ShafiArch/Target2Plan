@@ -76,9 +76,15 @@ export function mountArea(body, { store, runtime, goto }) {
   const drawInfo = h("div.draw-info", "No rooms yet.");
   const geom = new GeometryCanvas(geomWrap, () => { store.drawnRooms = geom.rooms.map((r) => ({ ...r })); refreshDrawInfo(); });
   const um = h("button", { on: { click: () => setDrawUnits("m") } }, "m²"), uf = h("button", { on: { click: () => setDrawUnits("ft") } }, "ft²");
-  const scaleIn = h("input", { type: "range", min: 8, max: 90, step: 1, value: 28, style: { width: "120px" }, title: "Pixels per metre on the canvas; reduce it to fit many rooms" });
-  scaleIn.addEventListener("input", () => geom.setScale(Number(scaleIn.value)));
-  const drawPanel = h("div.draw-panel", h("div.draw-top", roomPalette(geom), h("div.mode-pill", um, uf), h("span.sub", "Scale"), scaleIn), geomWrap, drawInfo);
+  // zoom: buttons here, wheel or pinch on the canvas, keys + / - / 0 when it has focus
+  const zoomPct = h("button.zoom-pct", { title: "Back to 100 %", on: { click: () => geom.setScale(GeometryCanvas.BASE_PX_PER_M) } }, "100%");
+  const zoomCtl = h("div.zoom-ctl", { role: "group", "aria-label": "Canvas zoom" },
+    h("button", { title: "Zoom out (-)", "aria-label": "Zoom out", on: { click: () => geom.zoomBy(1 / 1.25) } }, "−"),
+    zoomPct,
+    h("button", { title: "Zoom in (+)", "aria-label": "Zoom in", on: { click: () => geom.zoomBy(1.25) } }, "+"),
+    h("button.fit", { title: "Fit the rooms in view (0)", on: { click: () => geom.fit() } }, "Fit"));
+  geom.onZoom = () => { zoomPct.textContent = `${geom.zoomPercent()}%`; };
+  const drawPanel = h("div.draw-panel", h("div.draw-top", roomPalette(geom), h("div.mode-pill", um, uf), zoomCtl), geomWrap, drawInfo);
   function setDrawUnits(u) { geom.setUnits(u); um.classList.toggle("active", u === "m"); uf.classList.toggle("active", u === "ft"); refreshDrawInfo(); }
 
   function refreshDrawInfo() {
@@ -127,7 +133,7 @@ export function mountArea(body, { store, runtime, goto }) {
     const zoned = ZONED_TYPES.reduce((s, t) => s + Number(c[t] || 0), 0);
     if (total <= 0) return toast("Add at least one room before generating.");
     if (zoned <= 0) return toast("Add at least one living, kitchen, bedroom or bathroom; balconies alone cannot be zoned.");
-    if (zoned > 14) return toast("The v13 zone model was trained on plans with up to 14 zoned rooms.");
+    if (zoned > 14) return toast("The zone model was trained on plans with up to 14 zoned rooms.");
     busy = true; renderGen();
     const ep = store.epoch;
     try {

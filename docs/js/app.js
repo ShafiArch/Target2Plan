@@ -8,11 +8,12 @@ import { mountArea } from "./ui/stage1.js";
 import { mountZones } from "./ui/stage2.js";
 import { mountConnectivity } from "./ui/stage3.js";
 import { mountSchematic } from "./ui/stage4.js";
+import { openAbout } from "./ui/about.js";
 
 const STAGES = [
   { id: "inputs", num: "00", title: "Inputs", sub: "Rooms · geometry · site · targets", width: 460 },
   { id: "area", num: "01", title: "Area Distribution", sub: "Pick one variation", width: 860 },
-  { id: "zones", num: "02", title: "Zone Assignments", sub: "v13 model · targets QVCI / AQI", width: 860 },
+  { id: "zones", num: "02", title: "Zone Assignments", sub: "Targets QVCI / AQI", width: 860 },
   { id: "connectivity", num: "03", title: "Connectivity", sub: "Nodes & edges per plan", width: 820 },
   { id: "schematic", num: "04", title: "Schematic Design", sub: "Areas × zones × connectivity", width: 1080 },
 ];
@@ -41,11 +42,12 @@ const header = h("header.app-header",
   h("button.pill", { title: "Open a saved session (.json)", on: { click: () => fileIn.click() } }, "Load session"),
   h("button.pill", { title: "Save the whole session as a .json file", on: { click: exportSession } }, "Export session"),
   h("button.pill.danger", { on: { click: () => { if (confirm("Reset the whole session? This cannot be undone.")) store.reset(); } } }, "Reset"),
+  h("button.pill", { title: "Author, license and credits", on: { click: openAbout } }, "About"),
   h("span.hsep"), themeBtn, fileIn);
 
 runtime.onStatus((s, d) => {
   status.className = `model-status ${s === "ready" ? "ready" : s === "error" ? "error" : ""}`;
-  if (s === "ready") { status.textContent = "Models ready · running in your browser"; status.title = d && d.mainThread ? `Running on the main thread (${d.reason})` : "Area, v13 zone and connectivity models loaded"; }
+  if (s === "ready") { status.textContent = "Models ready · running in your browser"; status.title = d && d.mainThread ? `Running on the main thread (${d.reason})` : "Area, zone and connectivity models loaded"; }
   else if (s === "error") { status.textContent = "Models failed to load"; status.title = String(d); }
 });
 
@@ -61,9 +63,32 @@ for (const st of STAGES) {
 }
 document.body.append(header, strip);
 
+// Moving to the next stage glides slowly (ease in and out, about a second,
+// a little longer for long distances) so the eye can follow where the work
+// went. Any wheel, touch or drag on the strip takes over at once.
+let glide = null;
+function glideTo(left) {
+  if (glide) cancelAnimationFrame(glide.raf);
+  const from = strip.scrollLeft, to = Math.max(0, Math.min(left, strip.scrollWidth - strip.clientWidth)), dist = to - from;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (Math.abs(dist) < 2 || reduce) { strip.scrollLeft = to; return; }
+  const dur = Math.min(1700, 850 + Math.abs(dist) * 0.3), t0 = performance.now();
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+  const snap = strip.style.scrollSnapType;
+  strip.style.scrollSnapType = "none";              // phone layout snaps; let the glide run first
+  const stop = () => { if (!glide) return; cancelAnimationFrame(glide.raf); glide = null; strip.style.scrollSnapType = snap; };
+  const step = (now) => {
+    const t = Math.min(1, (now - t0) / dur);
+    strip.scrollLeft = from + dist * ease(t);
+    if (t < 1) glide.raf = requestAnimationFrame(step); else stop();
+  };
+  glide = { raf: requestAnimationFrame(step) };
+  for (const ev of ["wheel", "touchstart", "pointerdown"]) strip.addEventListener(ev, stop, { once: true, passive: true });
+}
+
 function goto(stageId) {
   const el = cards[stageId];
-  if (el) strip.scrollTo({ left: Math.max(0, el.offsetLeft - strip.offsetLeft - 20 - (stageId === "zones" ? 0 : 200)), behavior: "smooth" });
+  if (el) glideTo(el.offsetLeft - strip.offsetLeft - 20 - (stageId === "zones" ? 0 : 200));
   store.emit(`goto:${stageId}`);
 }
 

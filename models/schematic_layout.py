@@ -24,8 +24,13 @@ from there, deterministically:
      storey ⇒ window length = WWR · 2.7 / 1.5 · wall length).
   4. **Furniture** — simple blocks per room type (bed, wardrobe, sofa,
      table, counter, WC, basin, shower …) placed against walls, away
-     from door clearances, in the manner of the furniture blocks of the
-     hypergraph library.
+     from door clearances. This step is a Python port of the furniture
+     placement logic in RGeoLib, the research geometry library of the
+     Hypergraph project by Ramon Elias Weber
+     (https://github.com/ramonweber/hypergraph, MIT License, Copyright (c)
+     2024 ramonweber; see THIRD_PARTY_NOTICES.md). Paper: Weber, Mueller &
+     Reinhart, Nature Communications 15, 8327 (2024),
+     https://doi.org/10.1038/s41467-024-52506-z
 
 Everything is computed in the canvas' *reference* coordinate system (the
 packer's box, ~600 units on the long side); ``metre`` is the number of
@@ -554,6 +559,9 @@ def build_openings(rects: List[dict], walls: List[dict], edges: List[dict],
 # ═════════════════════════════════════════════════════════════════════
 #  Furniture
 # ═════════════════════════════════════════════════════════════════════
+# Python port of the furniture placement logic in RGeoLib by Ramon Elias
+# Weber (https://github.com/ramonweber/hypergraph, MIT License, Copyright (c)
+# 2024 ramonweber; full text in THIRD_PARTY_NOTICES.md).
 
 # Each piece: ("name", width_along_wall_m, depth_into_room_m)
 # Drawn primitives are produced in reference coordinates by _draw_piece.

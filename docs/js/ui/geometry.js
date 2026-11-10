@@ -29,14 +29,64 @@ export class GeometryCanvas {
     this.autoCentre = true;
     this.box = null;
     this.counter = {};
+    this.spaceDown = false;
+    this.onZoom = null;
     this.cv.addEventListener("pointerdown", (e) => this.down(e));
     this.cv.addEventListener("pointermove", (e) => this.move(e));
     this.cv.addEventListener("pointerup", (e) => this.up(e));
     this.cv.addEventListener("pointercancel", (e) => this.up(e));
+    this.cv.addEventListener("auxclick", (e) => { if (e.button === 1) e.preventDefault(); });
+    this.cv.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });   // no autoscroll
+    // wheel (or trackpad pinch) zooms about the pointer
+    this.cv.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const [px, py] = this.local(e), d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      this.zoomAt(Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0018)), px, py);
+    }, { passive: false });
     this.cv.addEventListener("keydown", (e) => {
       if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); this.removeSelected(); }
+      else if (e.key === "+" || e.key === "=") { e.preventDefault(); this.zoomBy(1.25); }
+      else if (e.key === "-" || e.key === "_") { e.preventDefault(); this.zoomBy(1 / 1.25); }
+      else if (e.key === "0") { e.preventDefault(); this.fit(); }
+      else if (e.key === " ") { e.preventDefault(); if (!this.spaceDown) { this.spaceDown = true; if (!this.drag) this.cv.style.cursor = "grab"; } }
     });
+    this.cv.addEventListener("keyup", (e) => { if (e.key === " ") { this.spaceDown = false; if (!this.drag) this.cv.style.cursor = "default"; } });
+    this.cv.addEventListener("blur", () => { this.spaceDown = false; });
     onResize(wrap, () => { if (this.autoCentre) this.centre(); else this.draw(); });
+  }
+
+  // ── zoom and pan ──────────────────────────────────────────────────
+  // pxPerM is the zoom (28 px per metre = 100 %); pan moves the origin.
+  static BASE_PX_PER_M = 28;
+  static MIN_PX_PER_M = 6;
+  static MAX_PX_PER_M = 160;
+  zoomPercent() { return Math.round((this.pxPerM / GeometryCanvas.BASE_PX_PER_M) * 100); }
+  /** Zoom by `factor`, keeping the point under canvas pixel (px, py) in place. */
+  zoomAt(factor, px, py) {
+    const s0 = this.pxPerM, s1 = Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, s0 * factor));
+    if (Math.abs(s1 - s0) < 1e-9) return;
+    const [mx, my] = this.toM(px, py);
+    this.pxPerM = s1;
+    this.pan = [px - mx * s1 - this.pad, py - my * s1 - this.pad];
+    this.autoCentre = false;
+    this.draw();
+    this.onZoom?.();
+  }
+  zoomBy(factor) { const r = this.cv.getBoundingClientRect(); this.zoomAt(factor, r.width / 2, r.height / 2); }
+  /** Fit every room (or the plan outline when there are none) in the view. */
+  fit() {
+    const r = this.cv.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return;
+    let x0 = 0, y0 = 0, x1 = this.planW, y1 = this.planH;
+    if (this.rooms.length) {
+      x0 = Math.min(...this.rooms.map((q) => q.x)); x1 = Math.max(...this.rooms.map((q) => q.x + q.w));
+      y0 = Math.min(...this.rooms.map((q) => q.y)); y1 = Math.max(...this.rooms.map((q) => q.y + q.h));
+    }
+    const m = 36, s = Math.min((r.width - 2 * m) / Math.max(x1 - x0, 1), (r.height - 2 * m) / Math.max(y1 - y0, 1));
+    this.pxPerM = Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, s));
+    this.autoCentre = true;
+    this.centre();
+    this.onZoom?.();
   }
 
   changed() { this.onChange?.(); this.draw(); }
@@ -49,7 +99,7 @@ export class GeometryCanvas {
   }
   setUnits(u) { if (u !== this.units) { this.units = u; this.draw(); } }
   setPlan(wm, hm) { this.planW = Math.max(1, wm); this.planH = Math.max(1, hm); this.draw(); }
-  setScale(px) { this.pxPerM = Math.max(6, Math.min(120, px)); this.centre(); }
+  setScale(px) { this.pxPerM = Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, px)); this.centre(); this.onZoom?.(); }
 
   loadSample() {
     const sizes = [["living", 5.5, 4.0], ["bedroom", 4.0, 3.5], ["bedroom", 4.0, 3.5], ["kitchen", 3.0, 3.0], ["bathroom", 2.0, 2.5], ["balcony", 1.5, 3.0]];
@@ -131,6 +181,15 @@ export class GeometryCanvas {
   }
 
   down(e) {
+    // middle button, or Space + left button, pans the view
+    if (e.button === 1 || (e.button === 0 && this.spaceDown)) {
+      e.preventDefault();
+      this.cv.focus();
+      this.cv.setPointerCapture(e.pointerId);
+      this.drag = { mode: "pan", start: this.local(e), pan0: [...this.pan] };
+      this.cv.style.cursor = "grabbing";
+      return;
+    }
     if (e.button !== 0) return;
     this.cv.focus();
     this.cv.setPointerCapture(e.pointerId);
@@ -156,7 +215,15 @@ export class GeometryCanvas {
 
   move(e) {
     const [px, py] = this.local(e);
-    if (!this.drag) { const [r, edges] = this.hit(px, py); this.cv.style.cursor = r ? this.cursorFor(edges) : "default"; return; }
+    if (!this.drag) {
+      if (this.spaceDown) { this.cv.style.cursor = "grab"; return; }
+      const [r, edges] = this.hit(px, py); this.cv.style.cursor = r ? this.cursorFor(edges) : "default"; return;
+    }
+    if (this.drag.mode === "pan") {
+      this.pan = [this.drag.pan0[0] + px - this.drag.start[0], this.drag.pan0[1] + py - this.drag.start[1]];
+      this.autoCentre = false;
+      this.draw(); return;
+    }
     const s = this.pxPerM, dx = (px - this.drag.start[0]) / s, dy = (py - this.drag.start[1]) / s;
     if (this.drag.mode === "box") { this.box = [this.drag.start[0], this.drag.start[1], px, py]; this.draw(); return; }
     this.autoCentre = false;
@@ -176,6 +243,7 @@ export class GeometryCanvas {
 
   up() {
     if (!this.drag) return;
+    if (this.drag.mode === "pan") { this.drag = null; this.cv.style.cursor = this.spaceDown ? "grab" : "default"; return; }
     if (this.drag.mode === "box" && this.box) {
       const [a, b, c, d] = this.box, bx0 = Math.min(a, c), bx1 = Math.max(a, c), by0 = Math.min(b, d), by1 = Math.max(b, d);
       if (bx1 - bx0 > 3 || by1 - by0 > 3) {
@@ -196,13 +264,15 @@ export class GeometryCanvas {
   draw() {
     const { ctx, w, h: H } = fitCanvas(this.cv);
     const P = palette(), s = this.pxPerM, [ox, oy] = this.origin();
-    const stepM = this.units === "m" ? 1 : s / FT_PER_M >= 12 ? 1 / FT_PER_M : 5 / FT_PER_M;
+    // dot grid: 1 m (5 m when zoomed far out), or 1 ft / 5 ft
+    const stepM = this.units === "m" ? (s >= 9 ? 1 : 5) : s / FT_PER_M >= 12 ? 1 / FT_PER_M : 5 / FT_PER_M;
     const sp = stepM * s;
     ctx.fillStyle = P.a("ink3", 0.55);
     const x0 = ox - Math.ceil(ox / sp) * sp, y0 = oy - Math.ceil(oy / sp) * sp;
     for (let x = x0; x <= w; x += sp) for (let y = y0; y <= H; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 2 * Math.PI); ctx.fill(); }
     ctx.font = `9px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(`dots every ${this.units === "m" ? "1 m" : stepM < 1 ? "1 ft" : "5 ft"}`, 6, H - 10);
+    const stepTxt = this.units === "m" ? `${stepM} m` : stepM < 1 ? "1 ft" : "5 ft";
+    ctx.fillText(`dots every ${stepTxt} · wheel to zoom · middle-drag or Space + drag to pan`, 6, H - 10);
     if (!this.rooms.length) {
       ctx.font = `12px ${FONT}`; ctx.textAlign = "center"; ctx.fillText("Drop rooms here, then drag an edge or corner to size them", w / 2, H / 2);
     }

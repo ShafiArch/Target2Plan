@@ -21,10 +21,10 @@ export function mountInputs(body, { store, goRoomProgram }) {
   const reach = h("div.reach", "-");
   const future = ["Daylight Index", "Thermal Index"].map((n) => {
     const r = sliderRow(n, `${n} · future update`, 0.5, 0, 1, 0.01, () => {}, { disabled: true });
-    r.title = "Planned conditioning index, not part of the v13 model.";
+    r.title = "Planned conditioning index, not part of the current model.";
     return r;
   });
-  const secTargets = section("TARGETS", "Requested plan-level QVCI · AQI (conditions the v13 model)", true,
+  const secTargets = section("TARGETS", "Requested plan-level QVCI · AQI", true,
     h("label.check", chk, "Condition on targets (off = unconditioned sampling)"),
     rowQ, rowA,
     h("div.field-label", { style: { marginTop: "6px" } }, "Reachable range"), reach,
@@ -88,7 +88,7 @@ export function mountInputs(body, { store, goRoomProgram }) {
   const pSamp = numberInput(par.zone_samples, { min: 8, max: 400, step: 8, onChange: (v) => { inp().params.zone_samples = v; changed(); } });
   pSamp.title = "Sampled arrangements per request (plus one greedy decode). The paper reports best-of-12.";
   const pArea = numberInput(par.samples_n, { min: 20, max: 1000, step: 20, onChange: (v) => { inp().params.samples_n = v; changed(); } });
-  const secGen = section("GENERATION PARAMETERS", "Plans shown · sampling pool · temperature", false,
+  const secGen = section("GENERATION PARAMETERS", "Plans shown · sampling pool · temperature", true,
     h("div.param-grid", h("span.field-label", "Num tables"), pPlans, h("span.field-label", "Temperature"), pTemp,
       h("span.field-label", "Samples"), pSamp, h("span.field-label", "Area samples"), pArea));
 
@@ -101,7 +101,7 @@ export function mountInputs(body, { store, goRoomProgram }) {
     const scale = pg.units === "ft" ? 0.3048 : pg.units === "px" ? 1 / Math.max(pg.px_per_m, 1e-6) : 1;
     const zoned = ZONED_TYPES.reduce((s, t) => s + Number(ip.room_counts[t] || 0), 0);
     payload.textContent = JSON.stringify({
-      model: "zone v13 (cGAT-AR, outcome-labelled corpus)",
+      model: "zone (cGAT-AR, outcome-labelled corpus)",
       room_counts: ip.room_counts,
       plan_geometry: { ...pg, total_area: pg.width * pg.height, total_area_m2: Number((pg.width * pg.height * scale * scale).toFixed(2)) },
       site_conditions: Object.fromEntries(DIRS.map((d) => [d, { view: ip.site_conditions[d].view, L_dBA: ip.site_conditions[d].spl_dB }])),

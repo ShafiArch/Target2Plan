@@ -4,6 +4,8 @@
 // railing, doors sit on connectivity edges, windows follow the planned WWR,
 // and furniture blocks are placed against walls. Every step is recorded as a
 // frame so the canvas can replay the synthesis.
+// The furniture placement is a port of the placement logic in RGeoLib by
+// Ramon Elias Weber (MIT License); see LICENSE-RGeoLib.txt in this folder.
 import { pyHypot, pySum } from "./pymath.js";
 
 export const WALL_EXT_M = 0.25, WALL_INT_M = 0.12, DOOR_W_M = 0.9, DOOR_OFF_M = 0.2, DOOR_CLEAR_M = 1.0;
@@ -457,6 +459,13 @@ export function buildOpenings(rects, walls, edges, metre, wwrByRoom) {
 }
 
 // ═══════════════════════════════════ furniture ═════════════════════════
+// Furniture placement: a port of the furniture placement logic in RGeoLib,
+// the research geometry library of the Hypergraph project by Ramon Elias
+// Weber, https://github.com/ramonweber/hypergraph (MIT License, Copyright (c)
+// 2024 ramonweber; full text in LICENSE-RGeoLib.txt), carried over from the
+// desktop app's Python port in models/schematic_layout.py. Paper: Weber,
+// Mueller & Reinhart, Nature Communications 15, 8327 (2024),
+// https://doi.org/10.1038/s41467-024-52506-z
 const innerRect = (r, metre, inset = 0.08) => { const [x0, y0, x1, y1] = bounds(r), d = inset * metre; return [x0 + d, y0 + d, x1 - d, y1 - d]; };
 
 function placeAgainst(inner, side, w, d, at) {

@@ -1,6 +1,6 @@
 # Target2Plan
 
-Target2Plan goes from a room program and two plan-level targets, QVCI (Quality View Coverage Index) and AQI (Acoustic Quality Index), to zone assignments, connectivity graphs and schematic floor plans. Three trained models drive it: an area model, the v13 cGAT-AR zone model and a connectivity model.
+Target2Plan goes from a room program and two plan-level targets, QVCI (Quality View Coverage Index) and AQI (Acoustic Quality Index), to zone assignments, connectivity graphs and schematic floor plans. Three trained models drive it: an area model, a cGAT-AR zone model and a connectivity model.
 
 The repository has two front ends that share the same checkpoints in `assets/checkpoints/`:
 
@@ -16,10 +16,10 @@ The web app runs entirely in the browser. The checkpoints are exported to static
 It follows the desktop workflow, one card per stage:
 
 1. **Inputs**: targets with the reachable range, site conditions per facade, planned WWR, zone capacity, generation parameters.
-2. **Area Distribution**: draw the room program on a grid, or sample area variations from the area model (Farthest point or KMeans selection).
-3. **Zone Assignments**: v13 model decodes (one greedy plus sampled), sorted by distance to the targets, with the design explorer (parallel coordinates with brushing) and a detail view per plan.
+2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag), or sample area variations from the area model (Farthest point or KMeans selection).
+3. **Zone Assignments**: zone model decodes (one greedy plus sampled), sorted by distance to the targets, with the design explorer (parallel coordinates with brushing) and a detail view per plan.
 4. **Connectivity**: access graphs from the connectivity model, with secondary rooms relocated next to the room they connect to; animated.
-5. **Schematic Design**: packed plans with walls, doors, windows and furniture, the replayable synthesis, a details card for any room you click, and the Pareto view.
+5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front.
 
 Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), and the whole session as a `.json` file that can be loaded again. Three themes: off-white, white and dark.
 
@@ -68,8 +68,28 @@ Commit `docs/models/` and Pages picks it up. See `tools/README.md` for the parit
 
 ### How Stage 2 uses the targets
 
-The zone assignments are predicted by the trained v13 model, conditioned on the requested QVCI and AQI: the targets enter the decoder at every step, together with the site context and the zones already used. As in the desktop app, the model is decoded 81 times: once greedily (the most likely zone at every step, no randomness) and 80 times by drawing from the model's own predicted probabilities at temperature 0.8. The arrangements are scored with the journal equations and the 12 closest to the targets are shown.
+The zone assignments are predicted by the trained zone model, conditioned on the requested QVCI and AQI: the targets enter the decoder at every step, together with the site context and the zones already used. As in the desktop app, the model is decoded 81 times: once greedily (the most likely zone at every step, no randomness) and 80 times by drawing from the model's own predicted probabilities at temperature 0.8. The arrangements are scored with the journal equations and the 12 closest to the targets are shown.
 
 ### How close is it to the desktop app
 
 The web engine is a step-for-step port. On the same inputs the networks agree with PyTorch to about 1e-5 on the logits, so the predicted probabilities and the greedy decode are the same as the desktop's, and Stages 2 to 4 (scoring, relocation, packing, walls, openings, furniture, Pareto front) reproduce the desktop output exactly. The 80 sampled decodes take their random draws from a JavaScript generator instead of PyTorch's. The desktop app draws a fresh set on every run as well, so in both apps the sampled cards change from run to run while coming from the same model probabilities.
+
+## Credits
+
+The furniture placement in the schematic synthesis is a port of the furniture placement logic in **RGeoLib**, the research geometry library of the Hypergraph project by **Ramon Elias Weber** ([github.com/ramonweber/hypergraph](https://github.com/ramonweber/hypergraph), MIT License). The desktop app (`models/schematic_layout.py`) carries the Python port and the web app (`docs/js/engine/schematic.js`) the JavaScript one. Please also cite:
+
+> Weber, R. E., Mueller, C. & Reinhart, C. A hypergraph model shows the carbon reduction potential of effective space use in housing. *Nature Communications* 15, 8327 (2024). https://doi.org/10.1038/s41467-024-52506-z
+
+The web app's GIF export uses gifenc by Matt DesLauriers and its MP4 export mp4-muxer by Vanilagy (both MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full notices.
+
+## License
+
+© 2026 Shafiul Islam. The code, the trained model weights, the documentation and the website are licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) (see [LICENSE](LICENSE)):
+
+* anyone may copy, share and adapt this work for non-commercial purposes;
+* full credit is required: name the author and Target2Plan, link to this repository and the license, and say what was changed;
+* commercial use, including selling this work or products and services built on it, is not permitted without separate written permission from the author.
+
+Suggested credit: *Target2Plan by Shafiul Islam, https://github.com/ShafiArch/Target2Plan, licensed under CC BY-NC 4.0.*
+
+Third-party components keep their own licenses ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).

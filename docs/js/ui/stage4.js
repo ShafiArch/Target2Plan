@@ -3,7 +3,7 @@
 // replayed as an animation; the AQI x QVCI Pareto front; exports.
 import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput } from "./common.js";
 import { makeSchematics, paretoFrontIndices } from "../engine/schematic.js";
-import { getSynthesis, paintFrame, commonFit, roomAt } from "./schematicPaint.js";
+import { getSynthesis, paintFrame, commonFit, roomAt, FURNITURE_STYLES, DEFAULT_FURNITURE } from "./schematicPaint.js";
 import { zipBlob, encodeGIF, encodeMP4 } from "./exporters.js";
 import { openSchematicDetail } from "./detail.js";
 import { showRoomPopup, closeRoomPopup } from "./roomPopup.js";
@@ -12,7 +12,8 @@ const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return 
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* ignore */ } };
 
 export function mountSchematic(body, { store, goto }) {
-  const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furniture: LS("schFurn", true), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
+  const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furn: LS("schFurnStyle", DEFAULT_FURNITURE), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
+  if (!FURNITURE_STYLES.some(([v]) => v === opt.furn)) opt.furn = DEFAULT_FURNITURE;
   let cards = [], lastSch = null, hoverIdx = null, fitDims = null;
   const grid = h("div.grid4");
   const gridWrap = h("div.schem-grid-wrap", grid);
@@ -34,8 +35,13 @@ export function mountSchematic(body, { store, goto }) {
   const bRegen = h("button.link-btn", { on: { click: () => regenerate() } }, "Regenerate");
   const cEdges = chip("● Show edges", "edges", "Dashed connectivity edges behind the plan", "schEdges");
   const cWalls = chip("▭ Walls · doors · windows", "walls", "Draw double-line walls with doors and windows", "schWalls");
-  const cFurn = chip("▦ Furniture", "furniture", "Draw furniture blocks", "schFurn");
-  const cPlan = chip("▣ Plan only", "planOnly", "Hide the Pareto front and the compass letters to show as many plans as possible", "schPlanOnly");
+  // furniture style dropdown (placement after RGeoLib by Ramon Elias Weber, MIT License)
+  const furnSel = h("select", { "aria-label": "Furniture style" }, ...FURNITURE_STYLES.map(([v, label]) => h("option", { value: v }, label)));
+  furnSel.value = opt.furn;
+  const cFurn = h("label.chip.chip-select" + (opt.furn !== "none" ? ".active" : ""), { title: "How furniture is drawn. Furniture placement after RGeoLib by Ramon Elias Weber (MIT License)." }, "▦ Furniture", furnSel);
+  furnSel.addEventListener("change", () => { opt.furn = furnSel.value; SS("schFurnStyle", opt.furn); cFurn.classList.toggle("active", opt.furn !== "none"); applyView(); });
+  // Pareto front panel toggle (on = accent red); off leaves only the plans
+  const cPlan = h("button.chip" + (!opt.planOnly ? ".active" : ""), { title: "Show or hide the AQI × QVCI Pareto front below the plans", on: { click: () => { opt.planOnly = !opt.planOnly; SS("schPlanOnly", opt.planOnly); cPlan.classList.toggle("active", !opt.planOnly); applyView(); } } }, "◆ Pareto front");
   const animIn = numberInput(opt.anim, { min: 0, max: 400, step: 5, suffix: "ms", width: 84, onChange: (v) => { opt.anim = v; SS("schAnim", v); replayAll(); } });
   animIn.title = "Milliseconds per synthesis frame (0 = show the finished plan)";
   const bReplay = h("button.link-btn", { title: "Replay the schematic synthesis on every card", on: { click: () => replayAll() } }, "↻ Replay");
@@ -71,7 +77,7 @@ export function mountSchematic(body, { store, goto }) {
       const { ctx, w, h: H } = fitCanvas(cv);
       if (!syn.frames.length) return;
       shown = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[Math.min(frameIdx, syn.frames.length - 1)];
-      T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showCaption: frameIdx >= 0, showCompass: !opt.planOnly, fitDims });
+      T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showCaption: frameIdx >= 0, showCompass: !opt.planOnly, fitDims });
     };
     // a click on a room opens its card (as in the desktop app); elsewhere it selects the plan
     cv.addEventListener("click", (e) => {
@@ -277,7 +283,7 @@ export function mountSchematic(body, { store, goto }) {
 
   function renderPlanPNG(s, size = 900, label = true) {
     const { cv, ctx } = offscreen(size, size + 40, 2), P = palette(), syn = getSynthesis(s);
-    paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: label, fontScale: size / 400 });
+    paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showLabels: label, fontScale: size / 400 });
     const c = s.computed;
     ctx.font = `${13}px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.fillText(`#${pad2(s.plan_index)}   QVCI ${Number(c.qvci).toFixed(3)}   AQI ${Number(c.aqi).toFixed(3)}   ${(s.rooms || []).length} rooms`, 16, size + 20);
@@ -306,7 +312,7 @@ export function mountSchematic(body, { store, goto }) {
     const sheetFit = commonFit(ranked);
     ranked.forEach((s, i) => {
       const x = (i % cols) * cell, y = head + Math.floor(i / cols) * (cell + 22), syn = getSynthesis(s);
-      ctx.save(); ctx.translate(x, y); paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], cell, cell, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, fontScale: 1.05, fitDims: sheetFit }); ctx.restore();
+      ctx.save(); ctx.translate(x, y); paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], cell, cell, P, { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, fontScale: 1.05, fitDims: sheetFit }); ctx.restore();
       ctx.font = `11px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "center";
       ctx.fillText(`#${pad2(s.plan_index)}  Q ${s.computed.qvci.toFixed(2)}  A ${s.computed.aqi.toFixed(2)}`, x + cell / 2, y + cell + 8);
     });
@@ -324,7 +330,7 @@ export function mountSchematic(body, { store, goto }) {
       const drawFrame = (ctx, i) => {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.fillStyle = P.surface; ctx.fillRect(0, 0, size, size);
-        paintFrame(ctx, s, syn, syn.frames[i], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: true, showCaption: true, fontScale: Math.max(1, size / 400) });
+        paintFrame(ctx, s, syn, syn.frames[i], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showLabels: true, showCaption: true, fontScale: Math.max(1, size / 400) });
       };
       toast(`Encoding plan #${pad2(s.plan_index)} (${k + 1} of ${list.length})…`, 60000);
       files.push({ name: `schematic_synthesis_${pad2(s.plan_index)}.gif`, blob: await encodeGIF(n, size, drawFrame, delays) });

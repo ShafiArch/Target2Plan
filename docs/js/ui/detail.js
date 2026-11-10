@@ -5,7 +5,7 @@ import { planBox } from "./stage2.js";
 import { getSynthesis, paintFrame, roomAt } from "./schematicPaint.js";
 import { showRoomPopup, closeRoomPopup } from "./roomPopup.js";
 
-function overlay(content, onClose) {
+export function overlay(content, onClose) {
   const ov = h("div.overlay", { on: { click: (e) => { if (e.target === ov) close(); } } }, content);
   const key = (e) => { if (e.key === "Escape") close(); };
   function close() { ov.remove(); window.removeEventListener("keydown", key); onClose?.(); }
@@ -47,7 +47,7 @@ export function openZoneDetail(t, store) {
     kv("Avg indoor level", `${fmt(c.avg_spl_dB, 1)} dB(A)`), kv("Zone spread", `${c.zone_spread} / 9`),
     kv("Fullest zone", `${fullest} room${fullest !== 1 ? "s" : ""}`),
     kv("Capacity", `corner ${cap.corner} · edge ${cap.cardinal} · interior ${cap.interior}`),
-    kv("Capacity rule", c.valid ? "respected" : "violated"), kv("Decode", t.decode || "-"), kv("Model", "v13 cGAT-AR"));
+    kv("Capacity rule", c.valid ? "respected" : "violated"), kv("Decode", t.decode || "-"), kv("Model", "cGAT-AR"));
   const rows = t.rooms.map((r) => {
     const w = r.scored;
     return h("tr", h("td", r.room_id.replace(/_/g, " ")), h("td", r.zone_assignment == null ? "-" : ZONE_LABELS[r.zone_assignment]),
@@ -116,7 +116,7 @@ export function openSchematicDetail(s, store, opt) {
   const draw = () => {
     const { ctx, w, h: H } = fitCanvas(cv);
     shown = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[frameIdx];
-    T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, showFurniture: opt.furniture, showLabels: true, showCaption: frameIdx >= 0, fontScale: Math.max(1, w / 440) });
+    T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showLabels: true, showCaption: frameIdx >= 0, fontScale: Math.max(1, w / 440) });
   };
   cv.addEventListener("click", (e) => {
     const b = cv.getBoundingClientRect(), room = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top);

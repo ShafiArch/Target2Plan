@@ -4,6 +4,13 @@
 import { roomColor, hexA, FONT } from "./common.js";
 import { WALL_EXT_M, WALL_INT_M, synthesize, referenceBox } from "../engine/schematic.js";
 
+/** Furniture drawing styles for the Schematic toolbar (value, label). */
+export const FURNITURE_STYLES = [
+  ["line", "Line drawing"], ["line20", "Line drawing, 0.2"], ["line50", "Line drawing, 0.5"],
+  ["fill20", "Fill 0.2"], ["fill50", "Fill 0.5"], ["none", "No furniture"],
+];
+export const DEFAULT_FURNITURE = "line20";
+
 /** Cached synthesis per schematic (alignment C, like the desktop's Stage 4). */
 export function getSynthesis(s) {
   if (!s._syn) { const [bw, bh] = referenceBox(s); Object.defineProperty(s, "_syn", { value: synthesize(s, "C", bw, bh), enumerable: false, writable: true }); }
@@ -80,7 +87,9 @@ function cornerFree(wl, syn, end) {
  *  commonFit) gives several cards the same scale; without it the finished plan
  *  fills the view. */
 export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
-  const { showEdges = true, showLabels = false, showWalls = true, showFurniture = true, showCaption = false, fontScale = 1, showCompass = true, fitDims = null } = o;
+  const { showEdges = true, showLabels = false, showWalls = true, showCaption = false, fontScale = 1, showCompass = true, fitDims = null } = o;
+  // furniture style: line | line20 | line50 | fill20 | fill50 | none (see FURNITURE_STYLES)
+  const furniture = o.furniture ?? (o.showFurniture === false ? "none" : DEFAULT_FURNITURE);
   const B = planBounds(syn);
   const view = B.suffix[Math.max(0, syn.frames.indexOf(frame))] || B.final;
   const edge = showCompass ? 13 * fontScale : 0;
@@ -95,7 +104,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
   const byId = new Map(shapes.map((s) => [s.room_id, s]));
   const wallsFrac = showWalls ? Number(frame.walls || 0) : 0;
   const nOpen = wallsFrac >= 1 ? Number(frame.openings || 0) : 0;
-  const nFurn = showFurniture ? Number(frame.furniture || 0) : 0;
+  const nFurn = furniture !== "none" ? Number(frame.furniture || 0) : 0;
   const metre = syn.metre;
   ctx.lineCap = "butt"; ctx.lineJoin = "miter";
 
@@ -237,13 +246,17 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     }
   }
 
-  // 5. furniture: white at 50 % over the room colour, thin outline
+  // 5. furniture (placement after RGeoLib, see engine/schematic.js): a line
+  // drawing in ink at full, 0.5 or 0.2 strength, or white blocks at 0.2 / 0.5
+  // over the room colour with a thin outline
   if (nFurn > 0) {
-    ctx.strokeStyle = P.ink2; ctx.lineWidth = 0.5; ctx.fillStyle = "rgba(255,255,255,0.5)";
+    const filled = furniture.startsWith("fill"), k = furniture.endsWith("20") ? 0.2 : furniture.endsWith("50") ? 0.5 : 1;
+    if (filled) { ctx.fillStyle = `rgba(255,255,255,${k})`; ctx.strokeStyle = P.ink2; ctx.lineWidth = 0.5; }
+    else { ctx.strokeStyle = P.a("ink", k); ctx.lineWidth = Math.max(0.6, metre * scale * 0.012); }
     for (const piece of syn.furniture.slice(0, nFurn)) for (const pr of piece.prims) {
       ctx.beginPath();
-      if (pr[0] === "rect") { ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale); ctx.fill(); ctx.stroke(); }
-      else if (pr[0] === "circle") { ctx.arc(TX(pr[1]), TY(pr[2]), pr[3] * scale, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+      if (pr[0] === "rect") { ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale); if (filled) ctx.fill(); ctx.stroke(); }
+      else if (pr[0] === "circle") { ctx.arc(TX(pr[1]), TY(pr[2]), pr[3] * scale, 0, 2 * Math.PI); if (filled) ctx.fill(); ctx.stroke(); }
       else { ctx.moveTo(TX(pr[1]), TY(pr[2])); ctx.lineTo(TX(pr[3]), TY(pr[4])); ctx.stroke(); }
     }
   }
