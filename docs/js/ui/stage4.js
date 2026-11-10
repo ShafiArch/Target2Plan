@@ -12,7 +12,7 @@ const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return 
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* ignore */ } };
 
 export function mountSchematic(body, { store, goto }) {
-  const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furn: LS("schFurnStyle", DEFAULT_FURNITURE), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
+  const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furn: LS("schFurniture", DEFAULT_FURNITURE), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
   if (!FURNITURE_STYLES.some(([v]) => v === opt.furn)) opt.furn = DEFAULT_FURNITURE;
   let cards = [], lastSch = null, hoverIdx = null, fitDims = null;
   const grid = h("div.grid4");
@@ -39,7 +39,7 @@ export function mountSchematic(body, { store, goto }) {
   const furnSel = h("select", { "aria-label": "Furniture style" }, ...FURNITURE_STYLES.map(([v, label]) => h("option", { value: v }, label)));
   furnSel.value = opt.furn;
   const cFurn = h("label.chip.chip-select" + (opt.furn !== "none" ? ".active" : ""), { title: "How furniture is drawn. Furniture placement after RGeoLib by Ramon Elias Weber (MIT License)." }, "▦ Furniture", furnSel);
-  furnSel.addEventListener("change", () => { opt.furn = furnSel.value; SS("schFurnStyle", opt.furn); cFurn.classList.toggle("active", opt.furn !== "none"); applyView(); });
+  furnSel.addEventListener("change", () => { opt.furn = furnSel.value; SS("schFurniture", opt.furn); cFurn.classList.toggle("active", opt.furn !== "none"); applyView(); });
   // Pareto front panel toggle (on = accent red); off leaves only the plans
   const cPlan = h("button.chip" + (!opt.planOnly ? ".active" : ""), { title: "Show or hide the AQI × QVCI Pareto front below the plans", on: { click: () => { opt.planOnly = !opt.planOnly; SS("schPlanOnly", opt.planOnly); cPlan.classList.toggle("active", !opt.planOnly); applyView(); } } }, "◆ Pareto front");
   const animIn = numberInput(opt.anim, { min: 0, max: 400, step: 5, suffix: "ms", width: 84, onChange: (v) => { opt.anim = v; SS("schAnim", v); replayAll(); } });

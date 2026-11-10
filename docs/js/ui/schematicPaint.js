@@ -9,7 +9,7 @@ export const FURNITURE_STYLES = [
   ["line", "Line drawing"], ["line20", "Line drawing, 0.2"], ["line50", "Line drawing, 0.5"],
   ["fill20", "Fill 0.2"], ["fill50", "Fill 0.5"], ["none", "No furniture"],
 ];
-export const DEFAULT_FURNITURE = "line20";
+export const DEFAULT_FURNITURE = "line50";
 
 /** Cached synthesis per schematic (alignment C, like the desktop's Stage 4). */
 export function getSynthesis(s) {
