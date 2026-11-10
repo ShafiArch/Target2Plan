@@ -246,13 +246,14 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     }
   }
 
-  // 5. furniture (placement after RGeoLib, see engine/schematic.js): a line
-  // drawing in ink at full, 0.5 or 0.2 strength, or white blocks at 0.2 / 0.5
-  // over the room colour with a thin outline
+  // 5. furniture (placement after RGeoLib, see engine/schematic.js), always in
+  // white: a line drawing at full, 0.5 or 0.2 strength, or white blocks at
+  // 0.2 / 0.5 over the room colour with a white outline
   if (nFurn > 0) {
     const filled = furniture.startsWith("fill"), k = furniture.endsWith("20") ? 0.2 : furniture.endsWith("50") ? 0.5 : 1;
-    if (filled) { ctx.fillStyle = `rgba(255,255,255,${k})`; ctx.strokeStyle = P.ink2; ctx.lineWidth = 0.5; }
-    else { ctx.strokeStyle = P.a("ink", k); ctx.lineWidth = Math.max(0.6, metre * scale * 0.012); }
+    const white = (a) => `rgba(255,255,255,${a})`, lw = Math.max(0.7, metre * scale * 0.014);
+    if (filled) { ctx.fillStyle = white(k); ctx.strokeStyle = white(0.95); ctx.lineWidth = lw; }
+    else { ctx.strokeStyle = white(k); ctx.lineWidth = lw; }
     for (const piece of syn.furniture.slice(0, nFurn)) for (const pr of piece.prims) {
       ctx.beginPath();
       if (pr[0] === "rect") { ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale); if (filled) ctx.fill(); ctx.stroke(); }
