@@ -15,7 +15,7 @@ export function openAbout() {
       h("div.about-sec", h("div.h", "THESIS"),
         h("p", "Developed by ", h("b", "Shafiul Islam"), " as a thesis in the Master of Science in Architecture / Design Technology program, Department of Architecture, University of Washington."),
         h("p.people", "Thesis supervisor: ", h("b", "Tomás Méndez Echenagucia"), ", Associate Professor, Department of Architecture"),
-        h("p.people", "Thesis reviewer: ", h("b", "Mohammad Tabatabaei Manesh"), ", PhD student, Design Technology")),
+        h("p.people", "Thesis committee member: ", h("b", "Mohammad Tabatabaei Manesh"), ", PhD student, Design Technology, UW")),
       h("div.about-sec", h("div.h", "AUTHOR AND LICENSE"),
         h("p", "© 2026 Shafiul Islam. The code and this website are licensed under ",
           link("https://creativecommons.org/licenses/by-nc/4.0/", "CC BY-NC 4.0"),

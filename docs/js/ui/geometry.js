@@ -357,7 +357,7 @@ function shade(hex, f) {
 
 /** Palette chips: drag one onto the canvas, or click to place it automatically. */
 export function roomPalette(geom) {
-  const wrap = h("div.palette", h("span.sub", COARSE() ? "Tap or drag a room onto the canvas:" : "Drag a room onto the canvas:"));
+  const wrap = h("div.palette", h("span.sub", COARSE() ? "Tap or drag" : "Drag a room onto the canvas:"));
   for (const rt of ["living", "bedroom", "kitchen", "bathroom", "balcony"]) {
     const chip = h("span.room-chip", { title: `Drag onto the canvas to add a ${rt} (${DEFAULT_AREA_M2[rt]} m² square to start)` }, h("span.swatch", { "data-rt": rt, style: { background: roomColor(rt) } }), ROOM_LABELS[rt]);
     chip.addEventListener("pointerdown", (e) => {

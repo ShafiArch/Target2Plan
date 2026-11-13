@@ -83,7 +83,7 @@ The web engine is a step-for-step port. On the same inputs the networks agree wi
 * Author: Shafiul Islam
 * Program: Master of Science in Architecture / Design Technology, Department of Architecture, University of Washington
 * Thesis supervisor: Tomás Méndez Echenagucia, Associate Professor, Department of Architecture
-* Thesis reviewer: Mohammad Tabatabaei Manesh, PhD student, Design Technology
+* Thesis committee member: Mohammad Tabatabaei Manesh, PhD student, Design Technology, UW
 
 ## Credits
 

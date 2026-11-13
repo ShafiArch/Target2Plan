@@ -20,8 +20,9 @@ export function mountArea(body, { store, runtime, goto }) {
   let busy = false;
 
   // ── mode bar ──────────────────────────────────────────────────────
-  const bDraw = h("button", { title: "Draw the rooms and their sizes yourself", on: { click: () => setMode("draw") } }, "Draw room program");
-  const bGen = h("button", { title: "Optional: let the trained area model sample the room areas from the room counts and the plan area. Drawing the rooms works without it.", on: { click: () => setMode("generate") } }, "Generate area distributions (optional)");
+  // the buttons carry a long label (desktop) and a short one (phone); CSS shows one of them
+  const bDraw = h("button", { title: "Draw the rooms and their sizes yourself", on: { click: () => setMode("draw") } }, h("span.long", "Draw room program"), h("span.short", "Draw"));
+  const bGen = h("button", { title: "Optional: let the trained area model sample the room areas from the room counts and the plan area. Drawing the rooms works without it.", on: { click: () => setMode("generate") } }, h("span.long", "Generate area distributions (optional)"), h("span.short", "Generate (optional)"));
   const modeHint = h("span.hint");
   const genTop = h("button.btn-primary", { title: "Sample area variations from the room counts and the plan area", on: { click: () => regenerate() } }, "Generate");
   const modeBar = h("div.mode-bar", h("div.mode-pill", bDraw, bGen), modeHint, genTop);
@@ -82,9 +83,24 @@ export function mountArea(body, { store, runtime, goto }) {
     h("button", { title: "Zoom out (-)", "aria-label": "Zoom out", on: { click: () => geom.zoomBy(1 / 1.25) } }, "−"),
     zoomPct,
     h("button", { title: "Zoom in (+)", "aria-label": "Zoom in", on: { click: () => geom.zoomBy(1.25) } }, "+"),
-    h("button.fit", { title: "Fit the rooms in view (0)", on: { click: () => geom.fit() } }, "Fit"));
+    h("button.fit", { title: "Fit the rooms in view (0)", on: { click: () => geom.fit() } }, "Fit"),
+    h("button.zoom-fs", { title: "Draw full screen", "aria-label": "Draw full screen", on: { click: () => setFull(true) } }, "⛶"));
   geom.onZoom = () => { zoomPct.textContent = `${geom.zoomPercent()}%`; };
-  const drawPanel = h("div.draw-panel", h("div.draw-top", roomPalette(geom), h("div.mode-pill", um, uf), zoomCtl), geomWrap, drawInfo);
+  // units and zoom sit in the draw panel; on phones they move up next to the mode pill
+  const drawCtl = h("div.draw-ctl", h("div.mode-pill", um, uf), zoomCtl);
+  const bMin = h("button.btn-ghost.fs-min", { title: "Back to the normal view", on: { click: () => setFull(false) } }, "⤡ Minimize");
+  const drawTop = h("div.draw-top", roomPalette(geom), drawCtl, bMin);
+  const drawPanel = h("div.draw-panel", drawTop, geomWrap, drawInfo);
+  const phone = window.matchMedia ? window.matchMedia("(max-width: 760px)") : null;
+  function placeDrawCtl() { if (phone && phone.matches) modeBar.append(drawCtl); else drawTop.insertBefore(drawCtl, bMin); }
+  placeDrawCtl();
+  phone?.addEventListener("change", () => { placeDrawCtl(); if (!phone.matches) setFull(false); });
+  // full-screen drawing (phone): the canvas fills the screen with only the room chips and Minimize
+  function setFull(on) {
+    if (drawPanel.classList.contains("fullscreen") === on) return;
+    drawPanel.classList.toggle("fullscreen", on);
+    requestAnimationFrame(() => geom.centre());
+  }
   function setDrawUnits(u) { geom.setUnits(u); um.classList.toggle("active", u === "m"); uf.classList.toggle("active", u === "ft"); refreshDrawInfo(); }
 
   function refreshDrawInfo() {
@@ -279,6 +295,7 @@ export function mountArea(body, { store, runtime, goto }) {
     genTools.forEach((el) => el.classList.toggle("hidden", draw));
     drawTools.forEach((el) => el.classList.toggle("hidden", !draw));
     bUse.classList.toggle("hidden", !draw);
+    drawCtl.classList.toggle("hidden", !draw);
     modeHint.textContent = draw ? "Drop rooms on the canvas and size them by dragging an edge or corner; then press Use this layout. The area model is optional." : "Optional: set the room counts and shapes, then let the area model sample area variations from the plan area. You can also draw the rooms yourself.";
     if (draw) requestAnimationFrame(() => geom.centre());
   }
