@@ -185,33 +185,51 @@ export function graphClear(g, gap = 8) {
  * over the zone model seeds and the connectivity model seeds (the app uses
  * 42); returns one summary row per plan.
  */
-export function search(name, { seeds = [1, 2, 3, 4, 5, 6], connSeeds = [42] } = {}) {
+export function search(name, { seeds = [1, 2, 3, 4, 5, 6], connSeeds = [42], practicalOnly = false, targets = null } = {}) {
   const program = PROGRAMS[name];
-  const { inputs, variation, total } = setup(program);
+  const { inputs: base, variation, total } = setup(program);
   const rows = [];
-  for (const seed of seeds) {
-    const ip = JSON.parse(JSON.stringify(inputs));
+  // where each room sits in the finished plan (centre in 0..1 of the plan's
+  // extent) and a rounded signature of it, to tell layouts apart
+  const layoutOf = (syn) => {
+    const b = syn.rects.filter((r) => r.room.room_type !== "balcony").map((r) => bounds(r));
+    const x0 = Math.min(...b.map((v) => v[0])), y0 = Math.min(...b.map((v) => v[1])), x1 = Math.max(...b.map((v) => v[2])), y1 = Math.max(...b.map((v) => v[3]));
+    const lay = syn.rects.filter((r) => r.room.room_type !== "balcony").map((r) => [r.room_id, (r.cx - x0) / (x1 - x0), (r.cy - y0) / (y1 - y0)]).sort((p, q) => (p[0] < q[0] ? -1 : 1));
+    return { layout: lay, aspect: (x1 - x0) / (y1 - y0), sig: lay.map(([id, u, v]) => `${id}:${Math.round(u * 20)}:${Math.round(v * 20)}`).join(" ") };
+  };
+  const graphSig = (g) => g.nodes.filter((n) => !n.is_direction).map((n) => `${n.id}:${Math.round(n.x)}:${Math.round(n.y)}`).sort().join(" ") + "|" + (g.edges_ordered || []).map((e) => `${e.source}-${e.target}`).join(" ");
+  // the default targets first, then any others asked for
+  const pairs = targets || [[base.prefs.target_qvci, base.prefs.target_aqi]];
+  for (const [ti, [tq, ta]] of pairs.entries()) for (const seed of seeds) {
+    const ip = JSON.parse(JSON.stringify(base));
+    ip.prefs.target_qvci = tq; ip.prefs.target_aqi = ta;
+    const doneEdges = new Set();
     const res = runTask(nets, "zones", { inputs: ip, variation, opts: { nSamples: ip.params.zone_samples, temperature: ip.params.temperature, seed } });
     const display = res.tables.slice(0, ip.params.n_plans);
     display.forEach((t, i) => { t.table_index = i; t.plan_width = ip.plan_geometry.width; t.plan_height = ip.plan_geometry.height; });
     const idxs = display.map((t) => t.table_index);
     for (const connSeed of connSeeds) {
       const graphs = runTask(nets, "conn", { tables: display, selected: idxs, opts: { planWidth: ip.plan_geometry.width, planHeight: ip.plan_geometry.height, roomCounts: { ...ip.room_counts }, seed: connSeed } });
+      const eSig = graphs.length ? graphs[0].edges_ordered.map((e) => `${e.source}-${e.target}`).join(" ") : "";
+      if (practicalOnly) { if (doneEdges.has(eSig)) continue; doneEdges.add(eSig); }   // same edges, same plans
       const gWhy = graphs.length ? graphCheck(graphs[0].nodes.filter((x) => !x.is_direction).map((x) => x.id), graphs[0].edges_ordered.map((e) => [e.source, e.target])) : ["no graph"];
       const schematics = makeSchematics(display, graphs, idxs, ip);
       for (const s of schematics) {
         const t = display[s.plan_index], g = graphs.find((x) => x.meta.plan_index === s.plan_index);
-        let c = { ok: false, why: gWhy.map((w) => `graph: ${w}`), fill: 0 }, frames = 0;
+        let c = { ok: false, why: gWhy.map((w) => `graph: ${w}`), fill: 0 }, frames = 0, practical = false, clear = false, lay = null;
         if (!gWhy.length) {
           const syn = getSynthesis(s);
-          c = check(s, syn); frames = syn.frames.length;
+          c = check(s, syn); frames = syn.frames.length; practical = c.ok;
           const drawn = g ? graphClear(g) : ["no graph"];
+          clear = !drawn.length;
           if (drawn.length) c = { ...c, ok: false, why: [...c.why, ...drawn.map((w) => `drawing: ${w}`)] };
+          if (practical) lay = { ...layoutOf(syn), graph_sig: g ? graphSig(g) : "" };
         }
-        const id = `${name}|${seed}|${connSeed}|${s.plan_index}`;
-        if (c.ok) kept.set(id, { schematic: s, graph: g, table: t });
+        const id = `${name}|${ti}|${seed}|${connSeed}|${s.plan_index}`;
+        if (practical) kept.set(id, { schematic: s, graph: g, table: t });
+        if (practicalOnly && !practical) continue;
         rows.push({
-          id, program: name, label: program.label, seed, conn_seed: connSeed, plan_index: s.plan_index, ok: c.ok, why: c.why, fill: c.fill,
+          id, program: name, label: program.label, target: ti, seed, conn_seed: connSeed, plan_index: s.plan_index, ok: c.ok, practical, clear, ...(lay || {}), why: c.why, fill: c.fill,
           qvci: t.computed.qvci, aqi: t.computed.aqi, d_target: t.computed.d_target,
           target_qvci: ip.prefs.target_qvci, target_aqi: ip.prefs.target_aqi, rooms: (s.rooms || []).length,
           area_m2: pyRound(total, 1), plan: [ip.plan_geometry.width, ip.plan_geometry.height],
@@ -280,20 +298,19 @@ function paintPlan(ctx, s, t, frame, col, P, dpr, fitDims = null, ch = CARD) {
 const availFor = (w, h) => { const m = Math.max(6, Math.min(w, h) * 0.035); return [w - 2 * m, h - 2 * m]; };
 
 /** One scale in pixels per metre for every plan (the largest at which all fit
- *  side by side), the canvas height that holds the tallest of them, and the
- *  fitDims that make paintFrame draw each plan at that scale. */
-function sharedScale(schematics) {
-  const w = CARD - 2 * PAD;
+ *  in a w wide view), the view height (at most maxH) that holds the tallest of
+ *  them, and the fitDims that make paintFrame draw each plan at that scale. */
+function sharedScale(schematics, w = CARD - 2 * PAD, maxH = w) {
   const ext = schematics.map((s) => { const syn = getSynthesis(s), b = planBounds(syn).final; return [(b[2] - b[0]) / syn.metre, (b[3] - b[1]) / syn.metre, syn.metre]; });
-  let h = w, pxPerM = 0;
+  let h = maxH, pxPerM = 0;
   for (let k = 0; k < 4; k++) {
     const [aw, ah] = availFor(w, h);
     pxPerM = Math.min(...ext.map(([ew, eh]) => Math.min(aw / ew, ah / eh)));
-    h = Math.min(w, Math.ceil(Math.max(...ext.map(([, eh]) => eh)) * pxPerM + (h - ah)) + 2);
+    h = Math.min(maxH, Math.ceil(Math.max(...ext.map(([, eh]) => eh)) * pxPerM + (h - ah)) + 2);
   }
   const [aw, ah] = availFor(w, h);
   pxPerM = Math.min(...ext.map(([ew, eh]) => Math.min(aw / ew, ah / eh)));
-  return { ch: h + 2 * PAD, fits: ext.map(([, , metre]) => [[aw * metre / pxPerM, ah * metre / pxPerM]]) };
+  return { h, ch: h + 2 * PAD, fits: ext.map(([, , metre]) => [[aw * metre / pxPerM, ah * metre / pxPerM]]) };
 }
 
 function clearAll(ctx, cv, P) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = P.surface; ctx.fillRect(0, 0, cv.width, cv.height); }
@@ -342,6 +359,61 @@ export function graphFrames(id, { dpr = 2.4, edgeMs = 260, first = 900, pauseMs 
     footer(ctx, 0, left, right);
     const delay = f === n ? hold : f === 0 ? first : f <= nE ? edgeMs : f <= nE + 8 ? pauseMs : moveMs;
     out.push({ png: cv.toDataURL("image/png"), delay });
+  }
+  return out;
+}
+
+/** Small centred caption: [text, font, colour] parts. */
+function caption(ctx, cx, y, parts) {
+  ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  const widths = parts.map(([txt, font]) => { ctx.font = font; return ctx.measureText(txt).width; });
+  let x = cx - widths.reduce((a, b) => a + b, 0) / 2;
+  parts.forEach(([txt, font, col], i) => { ctx.font = font; ctx.fillStyle = col; ctx.fillText(txt, x, y); x += widths[i]; });
+}
+
+/**
+ * A mosaic: rows of plans (each row at one scale) and a last row of
+ * connectivity graphs, all animating together. Every synthesis and graph is
+ * stretched over the same n frames, so they start and finish at once.
+ */
+export function gridFrames(planRows, graphIds, { cell = 180, gap = 12, margin = 28, label = 16, graphH = 160, n = 72, ms = 55, first = 600, hold = 3200 } = {}) {
+  const P = palette();
+  const rows = planRows.map((ids) => { const items = ids.map((id) => kept.get(id)); return { items, ...sharedScale(items.map((it) => it.schematic), cell, cell) }; });
+  const graphs = graphIds.map((id) => kept.get(id).graph);
+  const cols = Math.max(graphs.length, ...rows.map((r) => r.items.length));
+  const W = 2 * margin + cols * cell + (cols - 1) * gap;
+  const H = 2 * margin + rows.reduce((a, r) => a + r.h + label + gap, 0) + graphH + label;
+  const cv = document.createElement("canvas");
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const lab = `400 7.5px ${FONT}`, val = `600 8px ${MONO}`, num = `600 8px ${FONT}`, word = `400 8px ${FONT}`;
+  const out = [];
+  for (let f = 0; f < n; f++) {
+    const t = f / (n - 1);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = P.surface; ctx.fillRect(0, 0, W, H);
+    let y = margin;
+    for (const r of rows) {
+      r.items.forEach((it, k) => {
+        const syn = getSynthesis(it.schematic), fr = syn.frames, x = margin + k * (cell + gap);
+        ctx.setTransform(1, 0, 0, 1, x, y);
+        paintFrame(ctx, it.schematic, syn, fr[Math.round(t * (fr.length - 1))], cell, r.h, P,
+          { showEdges: false, showWalls: true, furniture: "line50", showLabels: false, showCaption: false, showCompass: false, fitDims: r.fits[k] });
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        const c = it.table.computed;
+        caption(ctx, x + cell / 2, y + r.h + label / 2, [["Q ", lab, P.ink3], [Number(c.qvci).toFixed(2), val, P.accent], ["   A ", lab, P.ink3], [Number(c.aqi).toFixed(2), val, P.accent]]);
+      });
+      y += r.h + label + gap;
+    }
+    graphs.forEach((g, k) => {
+      const x = margin + k * (cell + gap);
+      ctx.setTransform(1, 0, 0, 1, x, y);
+      drawGraph(ctx, g, cell, graphH, Math.round(t * totalSteps(g)), P, 0.85);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const rooms = g.nodes.filter((nd) => !nd.is_direction && nd.type !== "outside").length;
+      caption(ctx, x + cell / 2, y + graphH + label / 2, [[String(rooms), num, P.ink], [" rooms   ", word, P.ink3], [String((g.edges_ordered || []).length), num, P.ink], [" edges", word, P.ink3]]);
+    });
+    out.push({ png: cv.toDataURL("image/png"), delay: f === n - 1 ? hold : f === 0 ? first : ms });
   }
   return out;
 }

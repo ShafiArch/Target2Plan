@@ -29,6 +29,7 @@ import functools
 import http.server
 import io
 import json
+import math
 import threading
 from collections import Counter
 from pathlib import Path
@@ -69,34 +70,48 @@ def route_fonts(page, folder):
 
 
 def nearest(im, pal):
-    """im mapped to the closest palette colour, exactly (Pillow's own mapping
-    goes through a reduced colour cache and would turn white into off-white)."""
+    """Palette index of every pixel of im, the closest palette colour exactly
+    (Pillow's own mapping goes through a reduced colour cache and would turn
+    white into off-white)."""
     a = np.asarray(im, dtype=np.int64)
     key = (a[..., 0] << 16) | (a[..., 1] << 8) | a[..., 2]
     uniq, inv = np.unique(key.ravel(), return_inverse=True)
     cols = np.stack([uniq >> 16, (uniq >> 8) & 255, uniq & 255], axis=1)
     idx = ((cols[:, None, :] - pal[None, :, :]) ** 2).sum(axis=2).argmin(axis=1).astype(np.uint8)
-    out = Image.frombytes("P", im.size, idx[inv.ravel()].tobytes())
-    out.putpalette(pal.astype(np.uint8).ravel().tolist())
-    return out
+    return idx[inv.ravel()].reshape(a.shape[:2])
 
 
-def write_gif(frames, path):
+def write_gif(frames, path, diff=False):
     """One palette for the whole animation, no dithering. The palette keeps the
     most used colours exactly (background, room fills, ink) and fills the rest
     with a median cut of frames taken across the animation. Pillow stores only
-    the changed box of each frame and merges repeated frames."""
+    the changed box of each frame and merges repeated frames. With diff, pixels
+    that did not change since the previous frame are written as transparent
+    (index 255), which keeps large animations small."""
     imgs = [Image.open(io.BytesIO(base64.b64decode(f["png"].split(",", 1)[1]))).convert("RGB") for f in frames]
     n, (w, h) = len(imgs), imgs[0].size
     picks = sorted({0, n // 6, n // 3, n // 2, 2 * n // 3, 5 * n // 6, n - 1})
     sheet = Image.new("RGB", (w, h * len(picks)))
     for i, k in enumerate(picks):
         sheet.paste(imgs[k], (0, h * i))
+    size = 255 if diff else 256
     exact = [c for _, c in sorted(sheet.getcolors(w * h * len(picks)), reverse=True)[:96]]
-    cut = sheet.quantize(colors=256 - len(exact), method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).getpalette()
-    pal = np.array([v for c in exact for v in c] + cut[: 3 * (256 - len(exact))], dtype=np.int64).reshape(-1, 3)
-    q = [nearest(im, pal) for im in imgs]
-    q[0].save(path, save_all=True, append_images=q[1:], duration=[int(f["delay"]) for f in frames], loop=0, optimize=False, disposal=1)
+    cut = sheet.quantize(colors=size - len(exact), method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).getpalette()
+    pal = np.array([v for c in exact for v in c] + cut[: 3 * (size - len(exact))], dtype=np.int64).reshape(-1, 3)
+    idx = [nearest(im, pal) for im in imgs]
+    if diff:
+        enc = [idx[0]] + [np.where(idx[i] == idx[i - 1], 255, idx[i]).astype(np.uint8) for i in range(1, n)]
+        pal = np.vstack([pal, [[255, 0, 255]]])
+    else:
+        enc = idx
+    flat = pal.astype(np.uint8).ravel().tolist()
+    q = []
+    for a in enc:
+        im = Image.frombytes("P", (w, h), a.tobytes())
+        im.putpalette(flat)
+        q.append(im)
+    extra = {"transparency": 255} if diff else {}
+    q[0].save(path, save_all=True, append_images=q[1:], duration=[int(f["delay"]) for f in frames], loop=0, optimize=False, disposal=1, **extra)
     return path.stat().st_size
 
 
@@ -112,6 +127,74 @@ def contact_sheet(page, rows, path, cell=280, cols=6):
         draw.text((x + 6, y + cell + 2), f"{r['seed']}:{r['conn_seed']}:{r['plan_index']}  Q {r['qvci']:.2f} A {r['aqi']:.2f} fill {r['fill']:.2f}", fill=(60, 60, 60))
     path.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(path)
+
+
+def layout_dist(a, b):
+    """How far apart two plans of one program are: room centres (0..1 of the
+    plan extent) plus the difference in proportion."""
+    la = {rid: (u, v) for rid, u, v in a["layout"]}
+    d = sum(abs(la[rid][0] - u) + abs(la[rid][1] - v) for rid, u, v in b["layout"] if rid in la)
+    return d + abs(math.log(a["aspect"] / b["aspect"]))
+
+
+def graph_dist(a, b):
+    """How far apart two connectivity graphs are: node positions plus edges not shared."""
+    def parse(sig):
+        nodes, _, edges = sig.partition("|")
+        return {t.rsplit(":", 2)[0]: tuple(int(v) for v in t.rsplit(":", 2)[1:]) for t in nodes.split()}, set(edges.split())
+    (pa, ea), (pb, eb) = parse(a["graph_sig"]), parse(b["graph_sig"])
+    return sum(abs(pa[k][0] - pb[k][0]) + abs(pa[k][1] - pb[k][1]) for k in pa if k in pb) / 200 + 0.5 * len(ea ^ eb)
+
+
+def spread(pool, k, dist, first):
+    """k members of pool, starting with first, each next one the farthest from those chosen."""
+    chosen, rest = [first], [r for r in pool if r is not first]
+    while len(chosen) < k and rest:
+        best = max(rest, key=lambda r: min(dist(r, c) for c in chosen))
+        chosen.append(best)
+        rest.remove(best)
+    return chosen
+
+
+# target pairs for the mosaic, the default first: different targets give different arrangements
+GRID_TARGETS = [[0.7, 0.6], [0.6, 0.7], [0.75, 0.5], [0.5, 0.65], [0.65, 0.55], [0.55, 0.75], [0.8, 0.6], [0.6, 0.5]]
+
+
+def make_grid(page, names, seeds, conn_seeds, picks, path, per_row=8, graphs_per=2):
+    """The mosaic: per program a row of plans as different from each other as
+    possible, then a row of connectivity graphs, written as one GIF."""
+    plan_rows, graph_ids, spare = [], [], []
+    for name in names:
+        pick = picks.get(name)
+        cs = ([pick[1]] if pick else []) + [c for c in conn_seeds if not pick or c != pick[1]]
+        rows = page.evaluate("([n, s, c, t]) => G.search(n, { seeds: s, connSeeds: c, targets: t, practicalOnly: true })", [name, seeds, cs, GRID_TARGETS])
+        by_sig = {}
+        for r in sorted(rows, key=lambda r: (r["d_target"], -r["fill"])):
+            by_sig.setdefault(r["sig"], r)
+        pool = list(by_sig.values())
+        for floor in (0.6, 0.5, 0.0):
+            compact = [r for r in pool if r["fill"] >= floor]
+            if len(compact) >= per_row:
+                break
+        is_pick = lambda r: pick and r["target"] == 0 and (r["seed"], r["conn_seed"], r["plan_index"]) == pick
+        first = next((r for r in compact if is_pick(r)), None) or min(compact, key=lambda r: r["d_target"])
+        chosen = spread(compact, per_row, layout_dist, first)
+        plan_rows.append([r["id"] for r in chosen])
+        gpool = {}
+        for r in sorted((r for r in rows if r["clear"]), key=lambda r: r["d_target"]):
+            gpool.setdefault(r["graph_sig"], r)
+        gl = list(gpool.values())
+        gfirst = next((r for r in gl if is_pick(r)), None) or (gl[0] if gl else None)
+        if gfirst:
+            got = spread(gl, graphs_per + 2, graph_dist, gfirst)
+            graph_ids += [r["id"] for r in got[:graphs_per]]
+            spare += [r["id"] for r in got[graphs_per:]]
+        print(f"{name}: {len(rows)} practical plans, {len(pool)} distinct layouts, {len(compact)} compact; {len(gl)} distinct clear graphs")
+        for r in chosen:
+            print(f"  t{r['target']} {r['seed']}:{r['conn_seed']}:{r['plan_index']}  Q {r['qvci']:.2f} A {r['aqi']:.2f} fill {r['fill']:.2f}")
+    graph_ids = (graph_ids + spare)[: per_row]   # a program short of clear graphs leaves its place to another
+    frames = page.evaluate("([rows, graphs]) => G.gridFrames(rows, graphs)", [plan_rows, graph_ids])
+    print(f"wrote {path.name} ({write_gif(frames, path, diff=True) // 1024} KB, {len(frames)} frames)")
 
 
 def seed_list(spec):
@@ -134,6 +217,7 @@ def main():
     ap.add_argument("--strip-dpr", type=float, default=1.6, help="the same for the strip of all plans")
     ap.add_argument("--fonts")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--grid", action="store_true", help="write the mosaic plans_grid.gif instead (searches --seeds x --conn-seeds)")
     args = ap.parse_args()
     seeds, conn_seeds = seed_list(args.seeds), seed_list(args.conn_seeds)
     picks = {k: tuple(int(x) for x in v.split(":")) for k, v in (p.split("=") for p in args.pick)}
@@ -151,6 +235,10 @@ def main():
         names = page.evaluate("Object.keys(G.PROGRAMS)")
         if args.programs:
             names = [n for n in names if n in args.programs.split(",")]
+        if args.grid:
+            out.mkdir(parents=True, exist_ok=True)
+            make_grid(page, names, seeds, conn_seeds, picks, out / "plans_grid.gif")
+            names = []
         for name in names:
             # a picked plan only needs its own seeds
             s_, c_ = ([picks[name][0]], [picks[name][1]]) if name in picks else (seeds, conn_seeds)

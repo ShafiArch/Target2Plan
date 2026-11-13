@@ -47,4 +47,4 @@ python3 tools/gallery/make_gallery.py --pick 1-bedroom=4:3:4 --pick 2-bedroom=32
     --pick 3-bedroom=18:42:3 --pick 4-bedroom=23:17:0
 ```
 
-A pick is `program=zone_seed:connectivity_seed:plan`. It needs numpy, Pillow and Playwright for Python with Chromium; `--fonts DIR` serves the Inter and JetBrains Mono woff2 files from a local folder when Google Fonts cannot be reached.
+A pick is `program=zone_seed:connectivity_seed:plan`. With `--grid` it writes `plans_grid.gif`, the mosaic at the end of the README. It needs numpy, Pillow and Playwright for Python with Chromium; `--fonts DIR` serves the Inter and JetBrains Mono woff2 files from a local folder when Google Fonts cannot be reached.
