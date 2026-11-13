@@ -40,11 +40,11 @@ Both print a table of checks and end with `all N checks passed`. Set `PYTHONDONT
 
 ## gallery/
 
-Renders the README gallery in `media/gallery/` with the web app's own engine and painters in headless Chromium. For every room program in `gallery.mjs` (conventional room sizes, the default site, targets and parameters) it runs the pipeline over several zone model and connectivity model seeds, leaves out plans that fail the practicality check (connections without a shared wall long enough for a door or the open kitchen, rooms that cannot be reached or are reached through a bedroom, living room or bedrooms without a window, overlaps, and graphs where an edge runs over a room it does not join), and writes `<program>_plan.gif` (the schematic synthesis), `<program>_graph.gif` (the connectivity graph), `plans.gif` (all plans side by side at one scale) and `gallery.json` (what was drawn). The current gallery:
+Renders the GIFs of the README gallery in `media/gallery/` with the web app's own engine and painters in headless Chromium: for each room program in `gallery.mjs`, `<program>_plan.gif` (the schematic synthesis) and `<program>_graph.gif` (the connectivity graph), plus `plans.gif` (all plans side by side at one scale) and `gallery.json`. The current gallery:
 
 ```
 python3 tools/gallery/make_gallery.py --pick 1-bedroom=4:3:4 --pick 2-bedroom=32:3:1 \
     --pick 3-bedroom=18:42:3 --pick 4-bedroom=23:17:0
 ```
 
-A pick is `program=zone_seed:connectivity_seed:plan`. Without picks it searches `--seeds` and `--conn-seeds` and takes the most compact plan among those within 0.01 of the closest distance to the targets; `--dry-run --sheet DIR` lists the candidates and writes a contact sheet per program instead. It needs numpy, Pillow and Playwright for Python with Chromium; `--fonts DIR` serves the Inter and JetBrains Mono woff2 files from a local folder when Google Fonts cannot be reached.
+A pick is `program=zone_seed:connectivity_seed:plan`. It needs numpy, Pillow and Playwright for Python with Chromium; `--fonts DIR` serves the Inter and JetBrains Mono woff2 files from a local folder when Google Fonts cannot be reached.

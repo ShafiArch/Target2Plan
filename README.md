@@ -41,8 +41,6 @@ Four conventional apartment programs, generated with the web app's engine for th
   <tr><td colspan="2" align="center"><b>4 bedrooms</b>: living room, kitchen, 2 bathrooms, 2 balconies; 109 m²; QVCI 0.70, AQI 0.60</td></tr>
 </table>
 
-Not every generated plan is usable as drawn: the packing can leave two rooms that the graph connects without a shared wall, so the door between them is missing. The plans shown pass a practicality check: every connection in the graph is a door or an opening on a shared wall (at least 1.2 m, and 1.8 m for the open kitchen); every room is reachable from the entrance; the kitchen, every bedroom and a bathroom open off the living room; the living room and the bedrooms have windows; and no edge of the graph runs over a room it does not join. The gallery shows passing plans close to the targets, taken from several samples of the zone and connectivity models. The GIFs are made with `tools/gallery/` (see `tools/README.md`).
-
 ## Web app
 
 The web app runs entirely in the browser. The checkpoints are exported to static files and evaluated in JavaScript inside a Web Worker, so there is no server, no install and nothing leaves the machine. GitHub Pages serves it straight from the `docs/` folder of `main`.
