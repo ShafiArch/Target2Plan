@@ -262,9 +262,8 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     }
   }
 
-  // 6. labels (detail view, exports): plain ink snapped to whole pixels, no halo.
-  // A small tag in the room's own colour (clipped to the room) keeps furniture
-  // lines out from under the text.
+  // 6. labels (detail view, exports): plain ink snapped to whole pixels, with
+  // no halo and nothing behind the text, so the furniture stays in view.
   if (showLabels) {
     const fs1 = `500 ${8.5 * fontScale}px ${FONT}`, fs2 = `400 ${7.5 * fontScale}px ${FONT}`, k = fontScale;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -273,14 +272,6 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
       const hasScores = qv != null && aq != null && room.zone_assignment != null;
       const name = s.room_id.replace(/_/g, " "), sub = hasScores ? `QV ${Number(qv).toFixed(2)} · AQ ${Number(aq).toFixed(2)}` : null;
       const cx = Math.round(TX(s.cx)), cy = Math.round(TY(s.cy));
-      ctx.font = fs1; let tw = ctx.measureText(name).width;
-      if (sub) { ctx.font = fs2; tw = Math.max(tw, ctx.measureText(sub).width); }
-      const th = (sub ? 21 : 12) * k, [x0, y0, x1, y1] = shapeExtent(s);
-      ctx.save();
-      ctx.beginPath(); ctx.rect(TX(x0), TY(y0), (x1 - x0) * scale, (y1 - y0) * scale); ctx.clip();
-      ctx.fillStyle = over(roomColor(room.room_type), fillAlpha, P.surfaceRgb);
-      ctx.beginPath(); roundRect(ctx, cx - tw / 2 - 3 * k, cy - th / 2, tw + 6 * k, th, 2 * k); ctx.fill();
-      ctx.restore();
       ctx.font = fs1; ctx.fillStyle = P.ink; ctx.fillText(name, cx, cy + Math.round((sub ? -4.5 : 0) * k));
       if (sub) { ctx.font = fs2; ctx.fillStyle = P.ink2; ctx.fillText(sub, cx, cy + Math.round(5.5 * k)); }
     }
@@ -303,12 +294,6 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     ctx.fillStyle = P.ink3; ctx.fillText(frame.label, Math.round(7 * fs), y);
   }
   return { scale, ox, oy };
-}
-
-/** The opaque colour of `hex` at alpha `a` over the background `bgRgb`. */
-function over(hex, a, bgRgb) {
-  const n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return `rgb(${c.map((v, i) => Math.round(v * a + bgRgb[i] * (1 - a))).join(",")})`;
 }
 
 function roundRect(ctx, x, y, w, h, r) {
