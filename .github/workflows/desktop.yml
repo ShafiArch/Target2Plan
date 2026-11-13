@@ -1,0 +1,81 @@
+# Builds the Target2Plan desktop app (desktop/, Tauri) for Windows, macOS and
+# Linux. Pushing a version tag (v1.0.0, ...) attaches the installers to a draft
+# GitHub Release; a manual run keeps them as workflow artifacts.
+name: Desktop app
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            args: ""
+          - name: macOS (Apple silicon and Intel)
+            os: macos-latest
+            args: "--target universal-apple-darwin"
+          - name: Linux
+            os: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Tauri CLI
+        working-directory: desktop
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('Target2Plan {0}', github.ref_name) || '' }}
+          releaseBody: |
+            Target2Plan for Windows, macOS and Linux: the same app as https://shafiarch.github.io/Target2Plan/, running on your computer without a browser.
+
+            Download the file for your computer from the assets below:
+            * Windows: the `.exe` installer (or the `.msi`)
+            * macOS, Apple silicon and Intel: the `.dmg`
+            * Linux: the `.AppImage` (or the `.deb` for Debian and Ubuntu)
+
+            These builds are not code-signed yet, so the system asks once before the first start:
+            * Windows: if SmartScreen says "Windows protected your PC", click More info, then Run anyway.
+            * macOS: open the app; when macOS says it cannot verify it, go to System Settings, Privacy & Security, click Open Anyway and enter your password.
+
+            © 2026 Shafiul Islam. Licensed under CC BY-NC 4.0.
+          releaseDraft: true
+          uploadUpdaterJson: false
+          uploadWorkflowArtifacts: ${{ github.ref_type != 'tag' }}

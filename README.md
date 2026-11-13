@@ -7,12 +7,21 @@ Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in 
 ![Schematic synthesis of four apartments, from one to four bedrooms, drawn at one scale](media/gallery/plans.gif)
 *Four apartments generated for the targets QVCI 0.70 and AQI 0.60, drawn at one scale: from the rooms at their connectivity positions to walls, doors, windows and furniture. Q and A are the QVCI and AQI each plan reaches.*
 
-The repository has two front ends that share the same checkpoints in `assets/checkpoints/`:
+## Use it
+
+* **Online:** **https://shafiarch.github.io/Target2Plan/**, nothing to install.
+* **As an app from the browser:** open the site in Chrome or Edge and click **Install app** in the header (or the install icon in the address bar); in Safari on a Mac, choose File, Add to Dock. It then opens in its own window and works offline.
+* **Desktop app for Windows, macOS and Linux:** download the installer from the [latest release](https://github.com/ShafiArch/Target2Plan/releases/latest): the `.exe` (or `.msi`) for Windows, the `.dmg` for macOS (Apple silicon and Intel), the `.AppImage` or `.deb` for Linux.
+
+The installers are not code-signed yet, so the system asks once before the first start. On Windows, if SmartScreen says "Windows protected your PC", click More info, then Run anyway. On macOS, try to open the app, then go to System Settings, Privacy & Security, click Open Anyway and enter your password.
+
+The web app and the desktop app are the same program. The original prototype is the Python desktop app the thesis started from; all three use the trained checkpoints in `assets/checkpoints/`.
 
 | | where | how to run |
 |---|---|---|
-| Desktop app (PySide6) | `main.py`, `app/`, `models/`, `stages/` | `python main.py` (see `JOURNAL_VERSION_NOTES.md`) |
 | Web app | `docs/` | **https://shafiarch.github.io/Target2Plan/** |
+| Desktop app (Tauri) | `desktop/`, built from `docs/` | installers on the [Releases](https://github.com/ShafiArch/Target2Plan/releases) page |
+| Original prototype (Python, PySide6) | `main.py`, `app/`, `models/`, `stages/` | `python main.py` (see `JOURNAL_VERSION_NOTES.md`) |
 
 ## Gallery
 
@@ -45,9 +54,9 @@ Four conventional apartment programs, generated with the web app's engine for th
 
 ## Web app
 
-The web app runs entirely in the browser. The checkpoints are exported to static files and evaluated in JavaScript inside a Web Worker, so there is no server, no install and nothing leaves the machine. GitHub Pages serves it straight from the `docs/` folder of `main`.
+The web app runs entirely in the browser. The checkpoints are exported to static files and evaluated in JavaScript inside a Web Worker, so there is no server, no install and nothing leaves the machine. GitHub Pages serves it straight from the `docs/` folder of `main`. Installed from the browser, a service worker keeps the app, its fonts and the models, so it also starts and runs offline.
 
-It follows the desktop workflow, one card per stage:
+It follows the workflow of the original prototype, one card per stage:
 
 1. **Inputs**: targets with the reachable range, site conditions per facade, planned WWR, zone capacity, generation parameters.
 2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag), or, optionally, sample area variations from the area distribution model (Farthest point or KMeans selection).
@@ -74,7 +83,10 @@ then open http://localhost:8000.
 
 ```
 docs/
-  index.html, css/app.css
+  index.html, css/app.css, css/fonts.css
+  manifest.webmanifest, sw.js   installing from the browser, offline use
+  fonts/             Inter and JetBrains Mono (SIL Open Font License)
+  icons/             app icons
   js/app.js          header, stage strip, sessions, theme
   js/store.js        session state and change events
   js/runtime.js      starts the worker (falls back to the main thread)
@@ -89,8 +101,13 @@ docs/
 tools/
   export_weights.py  checkpoints to docs/models (no PyTorch needed)
   ptload.py          minimal reader for PyTorch .pt files
-  parity/            checks the web engine against the desktop code
+  parity/            checks the web engine against the prototype's Python code
   gallery/           renders the README gallery into media/gallery/
+desktop/
+  package.json       the Tauri command line tool
+  src-tauri/         the desktop app: tauri.conf.json, src/main.rs,
+                     capabilities/, icons/ (from desktop/icon.svg)
+.github/workflows/desktop.yml   builds the installers
 ```
 
 ### After retraining a model
@@ -105,11 +122,29 @@ Commit `docs/models/` and Pages picks it up. See `tools/README.md` for the parit
 
 ### How Stage 2 uses the targets
 
-The zone assignments are predicted by the trained zone model, conditioned on the requested QVCI and AQI: the targets enter the decoder at every step, together with the site context and the zones already used. As in the desktop app, the model is decoded 81 times: once greedily (the most likely zone at every step, no randomness) and 80 times by drawing from the model's own predicted probabilities at temperature 0.8. The arrangements are scored with the journal equations and the 12 closest to the targets are shown.
+The zone assignments are predicted by the trained zone model, conditioned on the requested QVCI and AQI: the targets enter the decoder at every step, together with the site context and the zones already used. As in the original prototype, the model is decoded 81 times: once greedily (the most likely zone at every step, no randomness) and 80 times by drawing from the model's own predicted probabilities at temperature 0.8. The arrangements are scored with the journal equations and the 12 closest to the targets are shown.
 
-### How close is it to the desktop app
+### How close is it to the original prototype
 
-The web engine is a step-for-step port. On the same inputs the networks agree with PyTorch to about 1e-5 on the logits, so the predicted probabilities and the greedy decode are the same as the desktop's, and Stages 2 to 4 (scoring, relocation, packing, walls, openings, furniture, Pareto front) reproduce the desktop output exactly. The 80 sampled decodes take their random draws from a JavaScript generator instead of PyTorch's. The desktop app draws a fresh set on every run as well, so in both apps the sampled cards change from run to run while coming from the same model probabilities.
+The web engine is a step-for-step port. On the same inputs the networks agree with PyTorch to about 1e-5 on the logits, so the predicted probabilities and the greedy decode are the same as the prototype's, and Stages 2 to 4 (scoring, relocation, packing, walls, openings, furniture, Pareto front) reproduce the prototype's output exactly. The 80 sampled decodes take their random draws from a JavaScript generator instead of PyTorch's. The prototype draws a fresh set on every run as well, so in both the sampled cards change from run to run while coming from the same model probabilities.
+
+## Desktop app
+
+The desktop app is the web app in a native window, built with [Tauri](https://tauri.app): the same files from `docs/`, run by the computer's own web engine (Edge WebView2 on Windows, WebKit on macOS and Linux). It differs only where a desktop program should: exports and sessions are saved through the system's Save dialog, confirmations use system dialogs and links open in the default browser. Everything runs offline.
+
+Installers are built on GitHub: pushing a version tag starts `.github/workflows/desktop.yml`, which builds the Windows, macOS and Linux installers and attaches them to a draft release to check and publish.
+
+```
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+Keep the version in `desktop/src-tauri/tauri.conf.json` and `Cargo.toml` in step with the tag. To build on your own computer, install Rust and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system, then:
+
+```
+cd desktop
+npm ci
+npm run build
+```
 
 ## Thesis
 
@@ -120,11 +155,11 @@ The web engine is a step-for-step port. On the same inputs the networks agree wi
 
 ## Credits
 
-The furniture placement in the schematic synthesis is a port of the furniture placement logic in **RGeoLib**, the research geometry library of the Hypergraph project by **Ramon Elias Weber** ([github.com/ramonweber/hypergraph](https://github.com/ramonweber/hypergraph), MIT License). The desktop app (`models/schematic_layout.py`) carries the Python port and the web app (`docs/js/engine/schematic.js`) the JavaScript one. Please also cite:
+The furniture placement in the schematic synthesis is a port of the furniture placement logic in **RGeoLib**, the research geometry library of the Hypergraph project by **Ramon Elias Weber** ([github.com/ramonweber/hypergraph](https://github.com/ramonweber/hypergraph), MIT License). The original prototype (`models/schematic_layout.py`) carries the Python port, and the web and desktop apps (`docs/js/engine/schematic.js`) the JavaScript one. Please also cite:
 
 > Weber, R. E., Mueller, C. & Reinhart, C. A hypergraph model shows the carbon reduction potential of effective space use in housing. *Nature Communications* 15, 8327 (2024). https://doi.org/10.1038/s41467-024-52506-z
 
-The web app's GIF export uses gifenc by Matt DesLauriers and its MP4 export mp4-muxer by Vanilagy (both MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full notices.
+The GIF export uses gifenc by Matt DesLauriers and the MP4 export mp4-muxer by Vanilagy (both MIT); the fonts are Inter and JetBrains Mono (SIL Open Font License) and the desktop app is built with Tauri (MIT or Apache 2.0). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the full notices.
 
 ## License
 

@@ -20,7 +20,7 @@ For each model it writes `<name>.bin` (every tensor as float32 little-endian, co
 
 ## parity/
 
-Checks that the JavaScript engine reproduces the desktop code. The Python side needs PyTorch and numpy (scipy and networkx as for the desktop app); PySide6 is not needed because `fakeqt/` stubs the few Qt classes the desktop state module imports. The JavaScript side needs Node 18 or newer.
+Checks that the JavaScript engine reproduces the original prototype's Python code. The Python side needs PyTorch and numpy (scipy and networkx as for the prototype); PySide6 is not needed because `fakeqt/` stubs the few Qt classes the desktop state module imports. The JavaScript side needs Node 18 or newer.
 
 1. Networks against PyTorch (area model, zone encoder and decoder, connectivity model):
 

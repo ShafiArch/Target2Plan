@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Target2Plan",
+  "version": "1.0.0",
+  "identifier": "io.github.shafiarch.target2plan",
+  "build": {
+    "frontendDist": "../../docs"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Target2Plan",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true,
+        "maximized": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "Shafiul Islam",
+    "copyright": "© 2026 Shafiul Islam. Licensed under CC BY-NC 4.0.",
+    "category": "GraphicsAndDesign",
+    "shortDescription": "From a room program and QVCI / AQI targets to schematic floor plans",
+    "longDescription": "Target2Plan turns a room program and quality view (QVCI) and acoustic quality (AQI) targets into zone assignments, connectivity graphs and schematic floor plans with walls, doors, windows and furniture. The trained models run on your own computer. A thesis by Shafiul Islam, MS in Architecture / Design Technology, University of Washington.",
+    "license": "CC-BY-NC-4.0",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    }
+  }
+}
