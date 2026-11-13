@@ -6,7 +6,7 @@
 //               with random_sample(), randn() (polar Box-Muller with the cached
 //               second value) and randint() (masked rejection).
 // Both produce the same streams as Python / numpy for the same seed, so a
-// seeded run in the browser gives the same result as the desktop app.
+// seeded run in the browser gives the same result as the Python prototype.
 
 const N = 624, M = 397;
 const MATRIX_A = 0x9908b0df, UPPER = 0x80000000, LOWER = 0x7fffffff;

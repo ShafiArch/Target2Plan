@@ -1,7 +1,7 @@
 // stage4.js: Schematic Design. Plans synthesised from areas, zones and
 // connectivity (rooms slide into contact, walls, doors, windows, furniture),
 // replayed as an animation; the AQI x QVCI Pareto front; exports.
-import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput } from "./common.js";
+import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput, DESKTOP } from "./common.js";
 import { makeSchematics, paretoFrontIndices } from "../engine/schematic.js";
 import { getSynthesis, paintFrame, commonFit, roomAt, FURNITURE_STYLES, DEFAULT_FURNITURE } from "./schematicPaint.js";
 import { zipBlob, encodeGIF, encodeMP4 } from "./exporters.js";
@@ -294,8 +294,8 @@ export function mountSchematic(body, { store, goto }) {
     if (!sel.length) return toast("Select at least one schematic card before exporting.");
     const files = [];
     for (const s of sel) files.push({ name: `schematic_${pad2(s.plan_index)}.png`, blob: await canvasBlob(renderPlanPNG(s)) });
-    if (files.length === 1) downloadBlob(files[0].blob, files[0].name); else downloadBlob(await zipBlob(files), "schematics.png.zip");
-    toast(`Saved ${files.length} plan${files.length > 1 ? "s" : ""}.`);
+    const saved = files.length === 1 ? await downloadBlob(files[0].blob, files[0].name) : await downloadBlob(await zipBlob(files), "schematics.png.zip");
+    if (saved) toast(`Saved ${files.length} plan${files.length > 1 ? "s" : ""}.`);
   }
   async function saveBatch() {
     const st = store.stage4;
@@ -341,8 +341,8 @@ export function mountSchematic(body, { store, goto }) {
         } catch { mp4ok = false; }
       }
     }
-    if (files.length === 1) downloadBlob(files[0].blob, files[0].name); else downloadBlob(await zipBlob(files), "schematic_synthesis.zip");
-    toast(mp4ok ? `Saved ${list.length} animation${list.length > 1 ? "s" : ""} as GIF and MP4.` : `Saved ${list.length} GIF animation${list.length > 1 ? "s" : ""}; this browser cannot encode MP4.`);
+    const saved = files.length === 1 ? await downloadBlob(files[0].blob, files[0].name) : await downloadBlob(await zipBlob(files), "schematic_synthesis.zip");
+    if (saved) toast(mp4ok ? `Saved ${list.length} animation${list.length > 1 ? "s" : ""} as GIF and MP4.` : `Saved ${list.length} GIF animation${list.length > 1 ? "s" : ""}; ${DESKTOP ? "MP4 encoding is not available on this computer" : "this browser cannot encode MP4"}.`);
   }
 
   store.on("stage4", () => { if (store.stage4.schematics !== lastSch) { lastSch = store.stage4.schematics; render(); } else refreshSelection(); });

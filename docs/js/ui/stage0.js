@@ -1,7 +1,7 @@
 // stage0.js: Inputs (targets, reachable range, site, WWR, zone capacity,
 // generation parameters, payload). Room counts, plan geometry and aspect
 // ratios live in the generator strip of Stage 1, as in the desktop app.
-import { h, section, sliderRow, roomSliderRow, numberInput, debounce } from "./common.js";
+import { h, section, sliderRow, roomSliderRow, numberInput, debounce, confirmAsk } from "./common.js";
 import { reachableRange, VIEW_OPTIONS } from "../engine/zones.js";
 import { capacity } from "../engine/scoring.js";
 import { defaultInputs, ZONED_TYPES } from "../store.js";
@@ -147,8 +147,8 @@ export function mountInputs(body, { store, goRoomProgram }) {
   }
 
   const scroll = h("div.scroll", { style: { padding: "8px 14px" } }, secTargets, secSite, secWwr, secCap, secGen, secPay);
-  const resetBtn = h("button.link-btn", { on: { click: () => {
-    if (!confirm("Reset all inputs to defaults?")) return;
+  const resetBtn = h("button.link-btn", { on: { click: async () => {
+    if (!(await confirmAsk("Reset all inputs to defaults?"))) return;
     store.inputs = defaultInputs();
     store.emit("inputsReset");
     store.inputsChanged();

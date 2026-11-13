@@ -11,7 +11,7 @@ export const FURNITURE_STYLES = [
 ];
 export const DEFAULT_FURNITURE = "line50";
 
-/** Cached synthesis per schematic (alignment C, like the desktop's Stage 4). */
+/** Cached synthesis per schematic (alignment C, like the prototype's Stage 4). */
 export function getSynthesis(s) {
   if (!s._syn) { const [bw, bh] = referenceBox(s); Object.defineProperty(s, "_syn", { value: synthesize(s, "C", bw, bh), enumerable: false, writable: true }); }
   return s._syn;

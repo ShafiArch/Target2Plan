@@ -2,7 +2,7 @@
 // session load / export, and the hand-offs between stages.
 import { store } from "./store.js";
 import { runtime } from "./runtime.js";
-import { h, THEMES, THEME_LABELS, downloadBlob, toast, refreshSwatches } from "./ui/common.js";
+import { h, THEMES, THEME_LABELS, downloadBlob, confirmAsk, toast, refreshSwatches, DESKTOP } from "./ui/common.js";
 import { mountInputs } from "./ui/stage0.js";
 import { mountArea } from "./ui/stage1.js";
 import { mountZones } from "./ui/stage2.js";
@@ -35,6 +35,26 @@ function setTheme(t) {
   store.emit("theme");
 }
 
+// ── installing and the desktop app ──────────────────────────────────
+// In a browser the site installs as an app (manifest + service worker; the
+// Install button shows when the browser offers it). In the desktop app links
+// open in the system browser.
+let installPrompt = null;
+const installBtn = h("button.pill.install", { title: "Install Target2Plan as an app on this computer; it then runs offline in its own window", style: { display: "none" },
+  on: { click: async () => { if (!installPrompt) return; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; installBtn.style.display = "none"; } } }, "Install app");
+if (DESKTOP) {
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (a && /^(https?|mailto):/i.test(a.href)) { e.preventDefault(); DESKTOP.opener.openUrl(a.href); }
+  });
+} else {
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; installBtn.style.display = ""; });
+  window.addEventListener("appinstalled", () => { installPrompt = null; installBtn.style.display = "none"; toast("Target2Plan is installed; open it from your apps."); });
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname))) {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }
+}
+
 // ── header ──────────────────────────────────────────────────────────
 const status = h("span.model-status", "Loading models…");
 const fileIn = h("input", { type: "file", accept: ".json,application/json", style: { display: "none" } });
@@ -43,13 +63,13 @@ const header = h("header.app-header",
   h("div.header-spacer"), status,
   h("button.pill", { title: "Open a saved session (.json)", on: { click: () => fileIn.click() } }, "Load session"),
   h("button.pill", { title: "Save the whole session as a .json file", on: { click: exportSession } }, "Export session"),
-  h("button.pill.danger", { on: { click: () => { if (confirm("Reset the whole session? This cannot be undone.")) store.reset(); } } }, "Reset"),
+  h("button.pill.danger", { on: { click: async () => { if (await confirmAsk("Reset the whole session? This cannot be undone.")) store.reset(); } } }, "Reset"),
   h("button.pill", { title: "Author, license and credits", on: { click: openAbout } }, "About"),
-  h("span.hsep"), themeBtn, fileIn);
+  installBtn, h("span.hsep"), themeBtn, fileIn);
 
 runtime.onStatus((s, d) => {
   status.className = `model-status ${s === "ready" ? "ready" : s === "error" ? "error" : ""}`;
-  if (s === "ready") { status.textContent = "Models ready · running in your browser"; status.title = d && d.mainThread ? `Running on the main thread (${d.reason})` : "Area, zone and connectivity models loaded"; }
+  if (s === "ready") { status.textContent = DESKTOP ? "Models ready · running on this computer" : "Models ready · running in your browser"; status.title = d && d.mainThread ? `Running on the main thread (${d.reason})` : "Area, zone and connectivity models loaded"; }
   else if (s === "error") { status.textContent = "Models failed to load"; status.title = String(d); }
 });
 
