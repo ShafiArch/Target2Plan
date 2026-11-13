@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en" data-theme="white">
+<head>
+<meta charset="utf-8">
+<title>Target2Plan gallery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../docs/css/app.css">
+</head>
+<body>
+<p style="padding: 16px">Target2Plan gallery renderer. Run <code>python3 tools/gallery/make_gallery.py</code>.</p>
+<script type="module">
+import * as G from "./gallery.mjs";
+window.G = G;
+window.galleryInfo = await G.init();
+</script>
+</body>
+</html>

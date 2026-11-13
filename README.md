@@ -4,12 +4,44 @@ Target2Plan goes from a room program and two plan-level targets, QVCI (Quality V
 
 Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in Architecture / Design Technology program at the University of Washington (Department of Architecture, College of Built Environments), supervised by Tomás Méndez Echenagucia.
 
+![Schematic synthesis of four apartments, from one to four bedrooms, drawn at one scale](media/gallery/plans.gif)
+*Four apartments generated for the targets QVCI 0.70 and AQI 0.60, drawn at one scale: from the rooms at their connectivity positions to walls, doors, windows and furniture. Q and A are the QVCI and AQI each plan reaches.*
+
 The repository has two front ends that share the same checkpoints in `assets/checkpoints/`:
 
 | | where | how to run |
 |---|---|---|
 | Desktop app (PySide6) | `main.py`, `app/`, `models/`, `stages/` | `python main.py` (see `JOURNAL_VERSION_NOTES.md`) |
 | Web app | `docs/` | **https://shafiarch.github.io/Target2Plan/** |
+
+## Gallery
+
+Four conventional apartment programs, generated with the web app's engine for the default site (north: vegetation view, 55 dB; south: urban view, 70 dB; east: no view, 65 dB; west: sky view, 60 dB), the default targets (QVCI 0.70, AQI 0.60) and the default generation parameters, with the room program drawn at common room sizes. Left, the schematic synthesis of a plan: the rooms start at their connectivity positions, pack together and get walls, doors, windows and furniture. Right, the connectivity graph of the same plan: the predicted edges appear one by one, then the secondary rooms move next to the room they connect to. Q and A under each plan are the QVCI and AQI it reaches.
+
+<table>
+  <tr>
+    <td><img src="media/gallery/1-bedroom_plan.gif" width="400" alt="Schematic synthesis of a one-bedroom apartment"></td>
+    <td><img src="media/gallery/1-bedroom_graph.gif" width="400" alt="Connectivity graph of the one-bedroom apartment"></td>
+  </tr>
+  <tr><td colspan="2" align="center"><b>1 bedroom</b>: living room, kitchen, bathroom, balcony; 51 m²; QVCI 0.70, AQI 0.60</td></tr>
+  <tr>
+    <td><img src="media/gallery/2-bedroom_plan.gif" width="400" alt="Schematic synthesis of a two-bedroom apartment"></td>
+    <td><img src="media/gallery/2-bedroom_graph.gif" width="400" alt="Connectivity graph of the two-bedroom apartment"></td>
+  </tr>
+  <tr><td colspan="2" align="center"><b>2 bedrooms</b>: living room, kitchen, bathroom, balcony; 67 m²; QVCI 0.69, AQI 0.60</td></tr>
+  <tr>
+    <td><img src="media/gallery/3-bedroom_plan.gif" width="400" alt="Schematic synthesis of a three-bedroom apartment"></td>
+    <td><img src="media/gallery/3-bedroom_graph.gif" width="400" alt="Connectivity graph of the three-bedroom apartment"></td>
+  </tr>
+  <tr><td colspan="2" align="center"><b>3 bedrooms</b>: living room, kitchen, 2 bathrooms, balcony; 86 m²; QVCI 0.70, AQI 0.59</td></tr>
+  <tr>
+    <td><img src="media/gallery/4-bedroom_plan.gif" width="400" alt="Schematic synthesis of a four-bedroom apartment"></td>
+    <td><img src="media/gallery/4-bedroom_graph.gif" width="400" alt="Connectivity graph of the four-bedroom apartment"></td>
+  </tr>
+  <tr><td colspan="2" align="center"><b>4 bedrooms</b>: living room, kitchen, 2 bathrooms, 2 balconies; 109 m²; QVCI 0.70, AQI 0.60</td></tr>
+</table>
+
+Not every generated plan is usable as drawn: the packing can leave two rooms that the graph connects without a shared wall, so the door between them is missing. The plans shown pass a practicality check: every connection in the graph is a door or an opening on a shared wall (at least 1.2 m, and 1.8 m for the open kitchen); every room is reachable from the entrance; the kitchen, every bedroom and a bathroom open off the living room; the living room and the bedrooms have windows; and no edge of the graph runs over a room it does not join. The gallery shows passing plans close to the targets, taken from several samples of the zone and connectivity models. The GIFs are made with `tools/gallery/` (see `tools/README.md`).
 
 ## Web app
 
@@ -58,6 +90,7 @@ tools/
   export_weights.py  checkpoints to docs/models (no PyTorch needed)
   ptload.py          minimal reader for PyTorch .pt files
   parity/            checks the web engine against the desktop code
+  gallery/           renders the README gallery into media/gallery/
 ```
 
 ### After retraining a model

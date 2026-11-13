@@ -1,0 +1,117 @@
+{
+  "plans": [
+    {
+      "program": "1-bedroom",
+      "label": "1 bedroom: living room, kitchen, bathroom, balcony",
+      "seed": 4,
+      "conn_seed": 3,
+      "plan_index": 4,
+      "qvci": 0.6967,
+      "aqi": 0.6048,
+      "target_qvci": 0.7,
+      "target_aqi": 0.6,
+      "rooms": 5,
+      "area_m2": 50.9,
+      "plan": [
+        8.2,
+        6.2
+      ],
+      "edges": [
+        "kitchen_0-living_0",
+        "bedroom_0-living_0",
+        "bathroom_0-living_0",
+        "outside_0-living_0",
+        "living_0-balcony_0"
+      ],
+      "plan_gif": "1-bedroom_plan.gif",
+      "graph_gif": "1-bedroom_graph.gif"
+    },
+    {
+      "program": "2-bedroom",
+      "label": "2 bedrooms: living room, kitchen, bathroom, balcony",
+      "seed": 32,
+      "conn_seed": 3,
+      "plan_index": 1,
+      "qvci": 0.6915,
+      "aqi": 0.5974,
+      "target_qvci": 0.7,
+      "target_aqi": 0.6,
+      "rooms": 6,
+      "area_m2": 66.5,
+      "plan": [
+        9.4,
+        7.1
+      ],
+      "edges": [
+        "kitchen_0-living_0",
+        "bedroom_0-living_0",
+        "bedroom_1-living_0",
+        "bathroom_0-living_0",
+        "outside_0-living_0",
+        "bedroom_1-balcony_0"
+      ],
+      "plan_gif": "2-bedroom_plan.gif",
+      "graph_gif": "2-bedroom_graph.gif"
+    },
+    {
+      "program": "3-bedroom",
+      "label": "3 bedrooms: living room, kitchen, 2 bathrooms, balcony",
+      "seed": 18,
+      "conn_seed": 42,
+      "plan_index": 3,
+      "qvci": 0.7038,
+      "aqi": 0.5912,
+      "target_qvci": 0.7,
+      "target_aqi": 0.6,
+      "rooms": 8,
+      "area_m2": 86,
+      "plan": [
+        10.7,
+        8
+      ],
+      "edges": [
+        "kitchen_0-living_0",
+        "bedroom_0-living_0",
+        "bedroom_1-living_0",
+        "bedroom_2-living_0",
+        "bathroom_0-living_0",
+        "bathroom_1-bedroom_2",
+        "outside_0-living_0",
+        "bedroom_0-balcony_0"
+      ],
+      "plan_gif": "3-bedroom_plan.gif",
+      "graph_gif": "3-bedroom_graph.gif"
+    },
+    {
+      "program": "4-bedroom",
+      "label": "4 bedrooms: living room, kitchen, 2 bathrooms, 2 balconies",
+      "seed": 23,
+      "conn_seed": 17,
+      "plan_index": 0,
+      "qvci": 0.7028,
+      "aqi": 0.5992,
+      "target_qvci": 0.7,
+      "target_aqi": 0.6,
+      "rooms": 10,
+      "area_m2": 109.1,
+      "plan": [
+        12.1,
+        9
+      ],
+      "edges": [
+        "kitchen_0-living_0",
+        "bedroom_0-living_0",
+        "bedroom_1-living_0",
+        "bedroom_2-living_0",
+        "bedroom_3-living_0",
+        "bathroom_0-bedroom_1",
+        "bathroom_1-living_0",
+        "outside_0-living_0",
+        "bedroom_0-balcony_0",
+        "bedroom_2-balcony_1"
+      ],
+      "plan_gif": "4-bedroom_plan.gif",
+      "graph_gif": "4-bedroom_graph.gif"
+    }
+  ]
+}
