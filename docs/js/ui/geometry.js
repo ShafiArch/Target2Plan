@@ -8,7 +8,8 @@ export const FT_PER_M = 3.280839895;
 export const SQFT_PER_M2 = FT_PER_M * FT_PER_M;
 export const ROOM_LABELS = { living: "Living", bedroom: "Bedroom", kitchen: "Kitchen", bathroom: "Bathroom", balcony: "Balcony" };
 export const DEFAULT_AREA_M2 = { living: 20, bedroom: 14, kitchen: 9, bathroom: 5, balcony: 5 };
-const MIN_SIDE_M = 1.0, SNAP_M = 0.1, HANDLE_PX = 7;
+const MIN_SIDE_M = 1.0, SNAP_M = 0.1, HANDLE_PX = 7, HANDLE_TOUCH_PX = 16;
+const COARSE = () => window.matchMedia?.("(pointer: coarse)").matches;
 const snap = (v) => Math.round(v / SNAP_M) * SNAP_M;
 const overlaps = ([x, y, w, hh], r) => !(x + w <= r.x || r.x + r.w <= x || y + hh <= r.y || r.y + r.h <= y);
 
@@ -31,6 +32,8 @@ export class GeometryCanvas {
     this.counter = {};
     this.spaceDown = false;
     this.onZoom = null;
+    this.touches = new Map();   // active touch points, for pinch zoom
+    this.pinch = null;
     this.cv.addEventListener("pointerdown", (e) => this.down(e));
     this.cv.addEventListener("pointermove", (e) => this.move(e));
     this.cv.addEventListener("pointerup", (e) => this.up(e));
@@ -157,15 +160,15 @@ export class GeometryCanvas {
   rectPx(r) { const [x, y] = this.toPx(r.x, r.y); return [x, y, r.w * this.pxPerM, r.h * this.pxPerM]; }
   local(e) { const b = this.cv.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
 
-  hit(px, py) {
+  hit(px, py, grip = HANDLE_PX) {
     for (let i = this.rooms.length - 1; i >= 0; i--) {
       const r = this.rooms[i], [x, y, w, hh] = this.rectPx(r);
-      if (px < x - HANDLE_PX || px > x + w + HANDLE_PX || py < y - HANDLE_PX || py > y + hh + HANDLE_PX) continue;
+      if (px < x - grip || px > x + w + grip || py < y - grip || py > y + hh + grip) continue;
       const edges = new Set();
-      if (Math.abs(px - x) <= HANDLE_PX) edges.add("W");
-      if (Math.abs(px - (x + w)) <= HANDLE_PX) edges.add("E");
-      if (Math.abs(py - y) <= HANDLE_PX) edges.add("N");
-      if (Math.abs(py - (y + hh)) <= HANDLE_PX) edges.add("S");
+      if (Math.abs(px - x) <= grip) edges.add("W");
+      if (Math.abs(px - (x + w)) <= grip) edges.add("E");
+      if (Math.abs(py - y) <= grip) edges.add("N");
+      if (Math.abs(py - (y + hh)) <= grip) edges.add("S");
       if (edges.size || (px >= x && px <= x + w && py >= y && py <= y + hh)) return [r, edges];
     }
     return [null, new Set()];
@@ -180,21 +183,55 @@ export class GeometryCanvas {
     return "move";
   }
 
+  // ── touch: a second finger starts a pinch (zoom about the midpoint, pan with it)
+  touchDown(e) {
+    this.touches.set(e.pointerId, this.local(e));
+    if (this.touches.size !== 2) return false;
+    const [a, b] = [...this.touches.values()], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    if (this.drag && this.drag.mode === "move") for (const r of this.drag.rooms) { const [ox, oy] = this.drag.origs.get(r.id); r.x = ox; r.y = oy; }
+    if (this.drag && this.drag.mode === "resize") Object.assign(this.drag.room, this.drag.orig);
+    this.drag = null; this.box = null;
+    this.pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]), anchor: this.toM(mid[0], mid[1]), s0: this.pxPerM };
+    try { this.cv.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    this.draw();
+    return true;
+  }
+  touchMove(e) {
+    if (!this.touches.has(e.pointerId)) return false;
+    this.touches.set(e.pointerId, this.local(e));
+    if (!this.pinch || this.touches.size < 2) return !!this.pinch;
+    const [a, b] = [...this.touches.values()], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const s1 = Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, this.pinch.s0 * (d / Math.max(this.pinch.d0, 1))));
+    this.pxPerM = s1;
+    this.pan = [mid[0] - this.pinch.anchor[0] * s1 - this.pad, mid[1] - this.pinch.anchor[1] * s1 - this.pad];
+    this.autoCentre = false;
+    this.draw(); this.onZoom?.();
+    return true;
+  }
+  touchUp(e) {
+    this.touches.delete(e.pointerId);
+    if (!this.pinch) return false;
+    if (this.touches.size < 2) { this.pinch = null; this.drag = null; }
+    return true;
+  }
+
   down(e) {
+    if (e.pointerType === "touch" && this.touchDown(e)) return;
     // middle button, or Space + left button, pans the view
     if (e.button === 1 || (e.button === 0 && this.spaceDown)) {
       e.preventDefault();
       this.cv.focus();
-      this.cv.setPointerCapture(e.pointerId);
+      try { this.cv.setPointerCapture(e.pointerId); } catch { /* synthetic or finished pointer */ }
       this.drag = { mode: "pan", start: this.local(e), pan0: [...this.pan] };
       this.cv.style.cursor = "grabbing";
       return;
     }
     if (e.button !== 0) return;
     this.cv.focus();
-    this.cv.setPointerCapture(e.pointerId);
+    try { this.cv.setPointerCapture(e.pointerId); } catch { /* synthetic or finished pointer */ }
     const [px, py] = this.local(e);
-    const [r, edges] = this.hit(px, py);
+    const [r, edges] = this.hit(px, py, e.pointerType === "touch" ? HANDLE_TOUCH_PX : HANDLE_PX);
     if (!r) {
       if (!e.shiftKey) this.selected = new Set();
       this.drag = { mode: "box", start: [px, py] };
@@ -214,6 +251,7 @@ export class GeometryCanvas {
   }
 
   move(e) {
+    if (e.pointerType === "touch" && this.touchMove(e)) return;
     const [px, py] = this.local(e);
     if (!this.drag) {
       if (this.spaceDown) { this.cv.style.cursor = "grab"; return; }
@@ -241,7 +279,8 @@ export class GeometryCanvas {
     this.changed();
   }
 
-  up() {
+  up(e) {
+    if (e && e.pointerType === "touch" && this.touchUp(e)) return;
     if (!this.drag) return;
     if (this.drag.mode === "pan") { this.drag = null; this.cv.style.cursor = this.spaceDown ? "grab" : "default"; return; }
     if (this.drag.mode === "box" && this.box) {
@@ -272,9 +311,9 @@ export class GeometryCanvas {
     for (let x = x0; x <= w; x += sp) for (let y = y0; y <= H; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 2 * Math.PI); ctx.fill(); }
     ctx.font = `9px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const stepTxt = this.units === "m" ? `${stepM} m` : stepM < 1 ? "1 ft" : "5 ft";
-    ctx.fillText(`dots every ${stepTxt} · wheel to zoom · middle-drag or Space + drag to pan`, 6, H - 10);
+    ctx.fillText(COARSE() ? `dots every ${stepTxt} · pinch to zoom and pan` : `dots every ${stepTxt} · wheel to zoom · middle-drag or Space + drag to pan`, 6, H - 10);
     if (!this.rooms.length) {
-      ctx.font = `12px ${FONT}`; ctx.textAlign = "center"; ctx.fillText("Drop rooms here, then drag an edge or corner to size them", w / 2, H / 2);
+      ctx.font = `12px ${FONT}`; ctx.textAlign = "center"; ctx.fillText(COARSE() ? "Tap a room type above to add it, then drag an edge or corner to size it" : "Drop rooms here, then drag an edge or corner to size them", w / 2, H / 2);
     }
     for (const r of this.rooms) {
       const [x, y, rw, rh] = this.rectPx(r), col = roomColor(r.type), sel = this.selected.has(r.id);
@@ -318,7 +357,7 @@ function shade(hex, f) {
 
 /** Palette chips: drag one onto the canvas, or click to place it automatically. */
 export function roomPalette(geom) {
-  const wrap = h("div.palette", h("span.sub", "Drag a room onto the canvas:"));
+  const wrap = h("div.palette", h("span.sub", COARSE() ? "Tap or drag a room onto the canvas:" : "Drag a room onto the canvas:"));
   for (const rt of ["living", "bedroom", "kitchen", "bathroom", "balcony"]) {
     const chip = h("span.room-chip", { title: `Drag onto the canvas to add a ${rt} (${DEFAULT_AREA_M2[rt]} m² square to start)` }, h("span.swatch", { "data-rt": rt, style: { background: roomColor(rt) } }), ROOM_LABELS[rt]);
     chip.addEventListener("pointerdown", (e) => {

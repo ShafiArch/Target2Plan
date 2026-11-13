@@ -131,6 +131,7 @@ input[type="range"]:hover::-webkit-slider-thumb { border-color: var(--accent); }
 input[type="range"]:disabled { cursor: default; }
 
 /* ── stage strip and cards ─────────────────────────────────────── */
+.stage-nav { display: none; }   /* stage tabs: phone only */
 .strip { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 18px 20px; overflow-x: auto; overflow-y: hidden; align-items: stretch; }
 .stage { flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .stage-head { flex: none; height: 54px; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
@@ -145,6 +146,7 @@ input[type="range"]:disabled { cursor: default; }
 .scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .toolbar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--surface); border-top: 1px solid var(--border); min-height: 46px; flex-wrap: wrap; }
 .toolbar .grow { flex: 1; }
+.toolbar .tools { display: contents; }   /* a scrolling row on phones */
 .toolbar.two-rows { flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 14px; }
 .toolbar.two-rows > .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .sub { font-size: 10px; color: var(--ink3); }
@@ -290,6 +292,7 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .pareto { flex: none; border-top: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; }
 .pareto-head { display: flex; align-items: center; gap: 8px; padding: 5px 14px; border-bottom: 1px solid var(--border); }
 .pareto-head .h { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--ink3); }
+.pareto-head .grow { flex: 1; }
 .pareto-plot { position: relative; height: 290px; }
 .pareto-plot canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .stage4-body.plan-only .pareto { display: none; }
@@ -355,12 +358,79 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .rp-chip.fail { color: var(--ink3); text-decoration: line-through; }
 .rp-chip.na { color: var(--ink3); background: var(--surface2); }
 
-/* small screens: one stage per screen width */
+/* ── small screens (phones): one stage per screen, stage tabs under the
+   header, and each stage a single scrolling page with its toolbar pinned at
+   the bottom. Nothing here applies above 760 px. ───────────────────────── */
 @media (max-width: 760px) {
-  .strip { padding: 10px; gap: 10px; scroll-snap-type: x mandatory; }
+  /* header: brand and theme on the first row, the session pills on the second */
+  .app-header { display: grid; grid-template-columns: auto auto auto auto; justify-content: space-between; align-items: center; height: auto; padding: 8px 10px; gap: 8px 6px; }
+  .brand { grid-row: 1; grid-column: 1 / 3; }
+  .app-header .pill.theme { grid-row: 1; grid-column: 4; justify-self: end; }
+  .app-header > .pill:not(.theme) { grid-row: 2; padding: 4px 9px; font-size: 11px; }
+  .header-spacer, .hsep, .model-status { display: none; }
+
+  /* stage tabs */
+  .stage-nav { display: flex; flex: none; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 6px; }
+  .stage-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px 5px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--ink3); }
+  .stage-tab .n { font-family: var(--mono); font-size: 9px; }
+  .stage-tab .t { font-size: 11px; font-weight: 500; }
+  .stage-tab .status-dot { width: 5px; height: 5px; margin: 2px 0 0; }
+  .stage-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .stage-tab.active .t { font-weight: 600; }
+
+  .strip { padding: 10px; gap: 10px; scroll-snap-type: x mandatory; scroll-padding: 0 10px; }
   .stage { width: calc(100vw - 20px) !important; scroll-snap-align: start; }
+  .stage-head { height: 46px; padding: 6px 12px; }
+
+  /* the stage body scrolls as one page; the toolbar stays at the bottom */
+  .stage-body { overflow-y: auto; overflow-x: hidden; }
+  .stage-body > .scroll { flex: none; overflow: visible; }
+  .toolbar { position: sticky; bottom: 0; z-index: 3; margin-top: auto; gap: 6px; padding: 7px 10px; }
+  .toolbar .grow { display: none; }
+  .toolbar .tools { display: flex; align-items: center; gap: 6px; flex: 1 1 100%; min-width: 0; overflow-x: auto; overflow-y: hidden; padding: 1px 0 3px; scrollbar-width: none; }
+  .toolbar .tools::-webkit-scrollbar { display: none; }
+  .toolbar .tools > * { flex: none; }
+  .toolbar .sel-label { margin-left: auto; }
+  .toolbar .btn-primary { flex: 1 1 40%; text-align: center; padding: 8px 12px; }
+  .toolbar.two-rows { flex-wrap: nowrap; gap: 4px; padding: 6px 10px; }
+  .toolbar.two-rows > .row { gap: 6px; min-width: 0; }
+  .empty-state { padding: 40px 16px 24px; }
   .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .app-header { padding: 0 10px; gap: 5px; overflow-x: auto; }
-  .model-status { display: none; }
   .slider-row { grid-template-columns: 1fr 110px 40px; }
+
+  /* Stage 1: mode pill full width, hint under it; palette on its own row; canvas fills the rest */
+  .mode-bar { flex-wrap: wrap; gap: 6px; padding: 6px 10px 2px; }
+  .mode-bar .mode-pill { flex: 1 1 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .mode-bar .mode-pill button { white-space: normal; line-height: 14px; padding: 4px 6px; }
+  .mode-bar .hint { flex: 1 1 0; }
+  .gen-inputs { flex-direction: column; gap: 0; padding: 0 10px 4px; overflow: visible; }
+  .gen-inputs > .section { min-width: 0; }
+  .gen-inputs > .section + .section { border-top: 1px solid rgb(var(--border-rgb) / 0.6) !important; }
+  .gen-inputs .param-grid { grid-template-columns: 1fr auto; }
+  .draw-panel { flex: 1 1 auto; padding: 4px 10px 6px; }
+  .draw-top { gap: 6px; }
+  .draw-top .palette { flex: 1 1 100%; }
+  .draw-top .zoom-ctl { margin-left: auto; }
+  .geom-wrap { min-height: 240px; }
+
+  /* Stage 2 */
+  .zone-card { min-height: 0; }
+  .zone-top canvas { width: 84px; height: 84px; }
+  .metrics .ms { font-size: 8px; min-width: 0; }
+  .pc-plot { height: 190px; }
+
+  /* Stage 4: plans first, the Pareto front below them in the same page */
+  .stage4-body { flex: none !important; }
+  .schem-grid-wrap { flex: none; overflow: visible; padding: 10px 10px 6px; }
+  .pareto-head { flex-wrap: wrap; }
+  .pareto-head .sub { display: none; }
+  .pareto-plot { height: 230px; }
+
+  /* overlays stack the plan above its tables */
+  .overlay { padding: 6px; }
+  .detail-head { flex-wrap: wrap; row-gap: 4px; }
+  .detail-head .sub { white-space: nowrap; }
+  .detail-body { flex-direction: column; gap: 10px; padding: 10px; }
+  .detail-canvas, .detail-side { min-width: 0; }
+  .detail-canvas { max-height: none; }
 }

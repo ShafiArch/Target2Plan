@@ -109,7 +109,7 @@ export function openSchematicDetail(s, store, opt) {
     h("td" + (r.quality_view_score == null ? ".dim" : r.scored && r.quality_view_score >= 0.5 ? ".acc" : ""), fmt(r.quality_view_score, 2)),
     h("td" + (r.acoustic_score == null ? ".dim" : r.scored && r.acoustic_ok ? ".acc" : ""), fmt(r.acoustic_score, 2)),
     h("td" + (r.est_avg_spl_dB == null ? ".dim" : ""), fmt(r.est_avg_spl_dB, 1))));
-  const rooms = h("div.detail-sec", h("div.h", `ROOMS (${(s.rooms || []).length})`), h("div.hint", "Click a room or a row to see its details"),
+  const rooms = h("div.detail-sec", h("div.h", `ROOMS (${(s.rooms || []).length})`), h("div.hint", "Click or tap a room or a row to see its details"),
     h("table.detail-tbl", h("thead", h("tr", h("th", "Room"), h("th", "m²"), h("th", "Zone"), h("th", "WWR"), h("th", "QV"), h("th", "AQ"), h("th", "dB(A)"))), h("tbody", ...rows)));
   const syn = getSynthesis(s);
   let frameIdx = -1, timer = null, T = null, shown = null;

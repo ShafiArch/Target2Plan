@@ -11,12 +11,14 @@ import { mountSchematic } from "./ui/stage4.js";
 import { openAbout } from "./ui/about.js";
 
 const STAGES = [
-  { id: "inputs", num: "00", title: "Inputs", sub: "Rooms · geometry · site · targets", width: 460 },
-  { id: "area", num: "01", title: "Area Distribution", sub: "Draw the rooms · area model optional", width: 860 },
-  { id: "zones", num: "02", title: "Zone Assignments", sub: "Targets QVCI / AQI", width: 860 },
-  { id: "connectivity", num: "03", title: "Connectivity", sub: "Nodes & edges per plan", width: 820 },
-  { id: "schematic", num: "04", title: "Schematic Design", sub: "Areas × zones × connectivity", width: 1080 },
+  { id: "inputs", num: "00", title: "Inputs", short: "Inputs", sub: "Rooms · geometry · site · targets", width: 460 },
+  { id: "area", num: "01", title: "Area Distribution", short: "Areas", sub: "Draw the rooms · area model optional", width: 860 },
+  { id: "zones", num: "02", title: "Zone Assignments", short: "Zones", sub: "Targets QVCI / AQI", width: 860 },
+  { id: "connectivity", num: "03", title: "Connectivity", short: "Graphs", sub: "Nodes & edges per plan", width: 820 },
+  { id: "schematic", num: "04", title: "Schematic Design", short: "Plans", sub: "Areas × zones × connectivity", width: 1080 },
 ];
+// Phone layout (one stage per screen, stage tabs under the header); see css/app.css.
+const phone = window.matchMedia ? window.matchMedia("(max-width: 760px)") : { matches: false };
 
 // ── theme ───────────────────────────────────────────────────────────
 let theme = (() => { try { return localStorage.getItem("t2p.theme") || "offwhite"; } catch { return "offwhite"; } })();
@@ -53,15 +55,30 @@ runtime.onStatus((s, d) => {
 
 // ── stage strip ─────────────────────────────────────────────────────
 const strip = h("main.strip");
-const cards = {}, dots = {}, bodies = {};
+const nav = h("nav.stage-nav", { "aria-label": "Stages" });
+const cards = {}, dots = {}, navDots = {}, tabs = {}, bodies = {};
 for (const st of STAGES) {
   dots[st.id] = h("span.status-dot");
+  navDots[st.id] = h("span.status-dot");
   bodies[st.id] = h("div.stage-body");
   cards[st.id] = h("section.stage", { style: { width: `${st.width}px` }, "data-stage": st.id },
     h("div.stage-head", h("span.num", st.num), h("div.titles", h("div.t", st.title), h("div.s", st.sub)), dots[st.id]), bodies[st.id]);
   strip.append(cards[st.id]);
+  tabs[st.id] = h("button.stage-tab", { title: st.title, on: { click: () => goto(st.id) } }, h("span.n", st.num), h("span.t", st.short), navDots[st.id]);
+  nav.append(tabs[st.id]);
 }
-document.body.append(header, strip);
+document.body.append(header, nav, strip);
+
+// the tab of the stage filling the screen is marked active (phone)
+function nearestStage() {
+  let best = null, bestD = Infinity;
+  for (const st of STAGES) { const d = Math.abs(cards[st.id].offsetLeft - strip.offsetLeft - strip.scrollLeft); if (d < bestD) { bestD = d; best = st.id; } }
+  return best;
+}
+function markActive(id) { for (const st of STAGES) tabs[st.id].classList.toggle("active", st.id === id); }
+let navTick = null;
+strip.addEventListener("scroll", () => { if (navTick) return; navTick = requestAnimationFrame(() => { navTick = null; markActive(nearestStage()); }); }, { passive: true });
+markActive("inputs");
 
 // Moving to the next stage glides slowly (ease in and out, about a second,
 // a little longer for long distances) so the eye can follow where the work
@@ -88,7 +105,12 @@ function glideTo(left) {
 
 function goto(stageId) {
   const el = cards[stageId];
-  if (el) glideTo(el.offsetLeft - strip.offsetLeft - 20 - (stageId === "zones" ? 0 : 200));
+  if (el) {
+    const pad = parseFloat(getComputedStyle(strip).paddingLeft) || 0;
+    // phone: the stage fills the screen, so align it exactly; desktop: show the end of the previous stage too
+    glideTo(el.offsetLeft - strip.offsetLeft - pad - (phone.matches || stageId === "zones" ? 0 : 200));
+    markActive(stageId);
+  }
   store.emit(`goto:${stageId}`);
 }
 
@@ -99,7 +121,7 @@ mountZones(bodies.zones, ctx);
 mountConnectivity(bodies.connectivity, ctx);
 const schematic = mountSchematic(bodies.schematic, ctx);
 
-function refreshDots() { const s = store.statuses(); for (const [k, v] of Object.entries(s)) dots[k].className = `status-dot ${v}`; }
+function refreshDots() { const s = store.statuses(); for (const [k, v] of Object.entries(s)) { dots[k].className = `status-dot ${v}`; navDots[k].className = `status-dot ${v}`; } }
 store.on("state", refreshDots);
 refreshDots();
 

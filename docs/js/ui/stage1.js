@@ -266,7 +266,7 @@ export function mountArea(body, { store, runtime, goto }) {
   const bUse = h("button.btn-primary", { title: "Turn the drawn rooms into the area distribution for the next stages", on: { click: useDrawnLayout } }, "Use this layout");
   const bProceed = h("button.btn-primary", { disabled: true, on: { click: () => goto("zones") } }, "Proceed to Zones  →");
   const drawTools = [bRemove, bClear, bSample];
-  const toolbar = h("div.toolbar", ...genTools, ...drawTools, h("div.grow"), bUse, bProceed);
+  const toolbar = h("div.toolbar", h("div.tools", ...genTools, ...drawTools), h("div.grow"), bUse, bProceed);
 
   body.append(modeBar, genInputs, genScroll, drawPanel, toolbar);
 

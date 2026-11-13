@@ -87,7 +87,7 @@ export function mountZones(body, { store, runtime, goto }) {
     AXES.forEach((a, i) => {
       const x = xs[i];
       ctx.strokeStyle = P.border; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, M.T); ctx.lineTo(x, H - M.B); ctx.stroke();
-      ctx.font = `500 10px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.label, Math.round(x), M.T - 12);
+      ctx.font = `500 ${w < 520 ? 8.5 : 10}px ${FONT}`; ctx.fillStyle = P.ink; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(a.label, Math.round(x), M.T - 12);
       ctx.font = `8px ${MONO}`; ctx.fillStyle = P.ink3;
       ctx.fillText(a.fmt(a.domain[1]), x, M.T - 1 + 0); ctx.fillText(a.fmt(a.domain[0]), x, H - M.B + 8);
       let y0 = null, y1 = null, alpha = 0.15;
@@ -155,7 +155,7 @@ export function mountZones(body, { store, runtime, goto }) {
   const selLbl = h("span.sel-label");
   const errPill = h("span.err-pill.hidden");
   const bProceed = h("button.btn-primary", { on: { click: () => goto("connectivity") } }, "Proceed to Connectivity  →");
-  body.append(scroll, explorer, h("div.toolbar", bRegen, bWeights, bAll, bExport, h("div.grow"), errPill, h("div.grow"), selLbl, bProceed));
+  body.append(scroll, explorer, h("div.toolbar", h("div.tools", bRegen, bWeights, bAll, bExport), h("div.grow"), errPill, h("div.grow"), selLbl, bProceed));
 
   function toggleSelect(idx) {
     const sel = new Set(store.stage2.selected_idxs);

@@ -23,6 +23,8 @@ It follows the desktop workflow, one card per stage:
 4. **Connectivity**: access graphs from the connectivity model, with secondary rooms relocated next to the room they connect to; animated.
 5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front.
 
+On a phone the stages become one screen each, with tabs under the header to move between them; the drawing canvas zooms with a pinch.
+
 Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), and the whole session as a `.json` file that can be loaded again. Three themes: off-white, white and dark.
 
 ### Run it locally

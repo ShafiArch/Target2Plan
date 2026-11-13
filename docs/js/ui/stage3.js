@@ -80,7 +80,7 @@ export function mountConnectivity(body, { store, runtime, goto }) {
   const bBatch = h("button.link-btn", { title: "Save the graphs as one contact-sheet PNG", on: { click: saveBatch } }, "Save Batch");
   const selLbl = h("span.sel-label");
   const bProceed = h("button.btn-primary", { on: { click: () => goto("schematic") } }, "Proceed to Schematic  →");
-  body.append(scroll, h("div.toolbar", bRegen, h("span.sub", "Anim speed"), speedIn, bReplay, bAll, bBatch, h("div.grow"), selLbl, bProceed));
+  body.append(scroll, h("div.toolbar", h("div.tools", bRegen, h("span.sub", "Anim speed"), speedIn, bReplay, bAll, bBatch), h("div.grow"), selLbl, bProceed));
 
   async function regenerate() {
     const st2 = store.stage2;

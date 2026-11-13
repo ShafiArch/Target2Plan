@@ -22,7 +22,7 @@ export function mountSchematic(body, { store, goto }) {
   const pcv = h("canvas");
   const b01 = h("button", { on: { click: () => setFixed(true) } }, "0-1"), bScaled = h("button", { on: { click: () => setFixed(false) } }, "Scaled");
   const pareto = h("div.pareto",
-    h("div.pareto-head", h("span.h", "AQI × QVCI PARETO FRONT"), h("span.sub", "· dominant designs highlighted"), h("span", { style: { flex: 1 } }),
+    h("div.pareto-head", h("span.h", "AQI × QVCI PARETO FRONT"), h("span.sub", "· dominant designs highlighted"), h("span.grow"),
       h("div.mode-pill", b01, bScaled), h("button.btn-ghost", { on: { click: saveParetoImage } }, "Save image"), h("button.btn-ghost", { on: { click: saveParetoCSV } }, "Save CSV")),
     h("div.pareto-plot", pcv));
   function setFixed(v) { opt.fixed = v; SS("paretoFixed", v); b01.classList.toggle("active", v); bScaled.classList.toggle("active", !v); drawPareto(); }
@@ -52,8 +52,8 @@ export function mountSchematic(body, { store, goto }) {
   const bBatch = h("button.link-btn", { title: "Top plans by distance to the targets on one contact sheet", on: { click: saveBatch } }, "Save Batch");
   const bExport = h("button.btn-primary", { on: { click: exportSelected } }, "Export selected  →");
   const toolbar = h("div.toolbar.two-rows",
-    h("div.row", bRegen, h("span.tsep"), cEdges, cWalls, cFurn, cPlan),
-    h("div.row", h("span.sub", "Anim speed"), animIn, bReplay, bAnim, h("span.tsep"), bAll, bDom, h("span", { style: { flex: 1 } }), selLbl, bBatch, bExport));
+    h("div.row", h("div.tools", bRegen, h("span.tsep"), cEdges, cWalls, cFurn, cPlan)),
+    h("div.row", h("div.tools", h("span.sub", "Anim speed"), animIn, bReplay, bAnim, h("span.tsep"), bAll, bDom), h("span.grow"), selLbl, bBatch, bExport));
   const bodyWrap = h("div.stage4-body", { style: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 } }, gridWrap, pareto);
   body.append(bodyWrap, toolbar);
 
