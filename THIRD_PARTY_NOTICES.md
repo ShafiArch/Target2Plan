@@ -51,6 +51,10 @@ SOFTWARE.
 
 The web and desktop apps include the Latin and Latin Extended subsets of **Inter** (Copyright 2016 The Inter Project Authors, [github.com/rsms/inter](https://github.com/rsms/inter)) and **JetBrains Mono** (Copyright 2020 The JetBrains Mono Project Authors, [github.com/JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono)) as WOFF2 files in `docs/fonts/`, taken from the Fontsource packages. Both are licensed under the SIL Open Font License 1.1; full texts: `docs/fonts/OFL-Inter.txt` and `docs/fonts/OFL-JetBrainsMono.txt`.
 
+## Helvetica metrics: PDF export
+
+The plan editor's PDF export names Helvetica and Helvetica-Bold, two of the standard PDF fonts that every PDF viewer supplies, so no font is embedded. To place text it uses Helvetica's published character widths from Adobe's Core 14 font metrics (AFM), which may be used and distributed for any purpose without charge.
+
 ## Tauri: desktop app
 
 The desktop app in `desktop/` is built with **Tauri** and its official dialog, file system and opener plugins ([tauri.app](https://tauri.app), [github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)), licensed under the MIT License or the Apache License 2.0, at your option. The compiled app also contains the Rust crates Tauri depends on, each under its own open-source license (mostly MIT or Apache 2.0).

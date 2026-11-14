@@ -9,7 +9,7 @@ Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in 
 
 ## Use it
 
-* **Online:** **https://shafiarch.github.io/Target2Plan/**, nothing to install.
+* **Online:** **https://shafiarch.github.io/Target2Plan/**, nothing to install. Version 1.0, as first released, stays online at https://shafiarch.github.io/Target2Plan/v1/.
 * **As an app from the browser:** open the site in Chrome or Edge and click **Install app** in the header (or the install icon in the address bar); in Safari on a Mac, choose File, Add to Dock. It then opens in its own window and works offline.
 * **Desktop app for Windows, macOS and Linux:** download the installer from the [latest release](https://github.com/ShafiArch/Target2Plan/releases/latest): the `.exe` (or `.msi`) for Windows, the `.dmg` for macOS (Apple silicon and Intel), the `.AppImage` or `.deb` for Linux.
 
@@ -59,14 +59,29 @@ The web app runs entirely in the browser. The checkpoints are exported to static
 It follows the workflow of the original prototype, one card per stage:
 
 1. **Inputs**: targets with the reachable range, site conditions per facade, planned WWR, zone capacity, generation parameters.
-2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag, and draw full screen with the corner button; Esc leaves it), or, optionally, sample area variations from the area distribution model (Farthest point or KMeans selection).
+2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag, and draw full screen with the corner button; Esc leaves it), or, optionally, sample area variations from the area distribution model (Farthest point or KMeans selection). The canvas edits like a CAD tool: select with a click, Ctrl or Shift + click, or a box; copy, cut and paste (Ctrl+C, Ctrl+X, Ctrl+V), duplicate (Ctrl+D), undo and redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y), nudge with the arrow keys (Shift for 1 m) and turn a room with R. Moved and resized rooms snap to the edges and centres of the other rooms, with guide lines showing what lined up; hold Alt to place freely, or switch Snap off. On a Mac, ⌘ stands for Ctrl.
 3. **Zone Assignments**: zone model decodes (one greedy plus sampled), sorted by distance to the targets, with the design explorer (parallel coordinates with brushing) and a detail view per plan.
 4. **Connectivity**: access graphs from the connectivity model, with secondary rooms relocated next to the room they connect to; animated.
-5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front. The connectivity edges and the Pareto front start hidden; their buttons show them.
+5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front. The connectivity edges and the Pareto front start hidden; their buttons show them. **Edit selected** opens the selected plans in the plan editor (see below).
+
+### The plan editor
+
+**Edit selected**, next to **Export selected**, opens the selected plans one at a time on a canvas like the drawing canvas of Stage 1. Rooms move and resize with the same snapping, so walls line up, and with the same undo, redo, nudging and turning; a room's width and depth can also be typed in. Walls, doors, windows, furniture and the scores follow every change at once. The side panel shows the selected room (zone, exterior walls, view and acoustic scores) and checks the plan: overlapping rooms, connected rooms that no longer share a wall long enough for a door, a missing entrance.
+
+An edited plan is not a new generation; it stays the same plan, marked **EDITED** on its card:
+
+* **Replace** puts the edit into the plan and moves on to the next selected plan;
+* **Save** puts it in and saves the session file, edits included (loading the session brings them back);
+* **Export** writes the plan as drawn: JPG on white, PNG with a transparent background, DXF for CAD (rooms, walls, glazing, doors, furniture and labels on their own layers, in metres; it opens in AutoCAD, which saves it as DWG, Revit and Rhino) or a vector PDF to scale on A3 with a scale bar;
+* **Discard** drops the changes; **Reset to generated** brings back the plan as it was generated.
+
+Synthesising the plans again (**Regenerate**, or **Proceed to Schematic** after a change in an earlier stage) asks first when plans are edited.
+
+How an edited plan is scored: in Stages 2 to 4 each room's zone comes from the zone plan. In the editor it comes from the drawing: a room takes the zone of the façades it really touches (an exterior wall of at least 1.2 m on a side; the longer of north and south, the longer of east and west; none is the interior zone). The journal equations then give each room's view and acoustic scores and the plan's QVCI and AQI, weighted by the drawn room areas. The editor shows these values (V and A, as drawn) next to the zone plan's own.
 
 On a phone the stages become one screen each, with tabs under the header to move between them; the drawing canvas zooms with a pinch.
 
-Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), and the whole session as a `.json` file that can be loaded again. Three themes: white, off-white and dark. The app always opens in white, whatever the computer's light or dark setting.
+Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), a plan from the plan editor as JPG, PNG, DXF or PDF, and the whole session as a `.json` file that can be loaded again. Three themes: white, off-white and dark. The app always opens in white, whatever the computer's light or dark setting.
 
 ### Run it locally
 
@@ -94,16 +109,21 @@ docs/
   js/engine/         ports of models/*.py: nn.js (the networks), area.js,
                      zones.js, scoring.js, relocation.js, connectivity.js,
                      schematic.js, rng.js and pymath.js (Python and numpy
-                     random, rounding and summation)
-  js/ui/             the five stage cards, canvases, detail views, exporters
+                     random, rounding and summation); layout.js rebuilds and
+                     scores a plan edited by hand
+  js/ui/             the five stage cards, canvases, detail views, exporters;
+                     planEditor.js, planEdit.js and planExport.js are the
+                     plan editor, its edits and its JPG, PNG, PDF, DXF output
   js/vendor/         gifenc 1.0.3 and mp4-muxer 5.2.2 (MIT, licences alongside)
   models/            exported weights: <model>.bin (float32) + <model>.json
+  v1/                version 1.0 as released, kept online (its own worker and cache)
 tools/
   export_weights.py  checkpoints to docs/models (no PyTorch needed)
   ptload.py          minimal reader for PyTorch .pt files
   parity/            checks the web engine against the prototype's Python code
 desktop/
   package.json       the Tauri command line tool
+  stage-web.mjs      copies docs/ (without v1/) into the app before a build
   src-tauri/         the desktop app: tauri.conf.json, src/main.rs,
                      capabilities/, icons/ (from desktop/icon.svg)
 .github/workflows/desktop.yml   builds the installers
@@ -130,7 +150,7 @@ The web engine is a step-for-step port. On the same inputs the networks agree wi
 
 ## Desktop app
 
-The desktop app is the web app in a native window, built with [Tauri](https://tauri.app): the same files from `docs/`, run by the computer's own web engine (Edge WebView2 on Windows, WebKit on macOS and Linux). It differs only where a desktop program should: exports and sessions are saved through the system's Save dialog, confirmations use system dialogs and links open in the default browser. Everything runs offline.
+The desktop app is the web app in a native window, built with [Tauri](https://tauri.app): the same files from `docs/` (copied in by `desktop/stage-web.mjs` at each build, leaving out the archived `v1/`), run by the computer's own web engine (Edge WebView2 on Windows, WebKit on macOS and Linux). It differs only where a desktop program should: exports and sessions are saved through the system's Save dialog, confirmations use system dialogs and links open in the default browser. Everything runs offline.
 
 Installers are built on GitHub by `.github/workflows/desktop.yml`. To publish a version:
 
