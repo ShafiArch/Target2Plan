@@ -5,7 +5,8 @@
 # "Make a draft release", "Run workflow". The installers go to a draft release
 # named after the version in desktop/src-tauri/tauri.conf.json (v1.0.0, ...),
 # with the notes in .github/release-notes.md; check it on the Releases page and
-# click "Publish release". Pushing a version tag does the same for that tag.
+# click "Publish release". Publishing creates the version tag; it starts no
+# build of its own.
 #
 # Any other run (a manual run without the tick, a push to the desktop-app
 # branch) keeps the installers as workflow artifacts to download and try.
@@ -13,7 +14,6 @@ name: Desktop app
 
 on:
   push:
-    tags: ["v*"]
     branches: ["desktop-app"]
   workflow_dispatch:
     inputs:
@@ -28,7 +28,7 @@ permissions:
 jobs:
   release:
     name: Draft release
-    if: github.ref_type == 'tag' || inputs.release
+    if: inputs.release
     runs-on: ubuntu-latest
     outputs:
       id: ${{ steps.draft.outputs.id }}
@@ -43,7 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then TAG="$GITHUB_REF_NAME"; else TAG="v$(jq -r .version desktop/src-tauri/tauri.conf.json)"; fi
+          TAG="v$(jq -r .version desktop/src-tauri/tauri.conf.json)"
           FOUND=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -r --arg tag "$TAG" 'map(select(.tag_name == $tag)) | first | select(. != null) | "\(.id) \(.draft)"')
           if [ -n "$FOUND" ]; then
             read -r ID DRAFT <<< "$FOUND"
