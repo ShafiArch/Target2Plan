@@ -71,7 +71,7 @@ export function mountSchematic(body, { store, goto }) {
     const el = h("div.plain-card.schem-card", { on: { click: () => toggle(s.plan_index), dblclick: () => { closeRoomPopup(); openSchematicDetail(s, store, opt); } } },
       h("div.plain-head", h("span.idx", `#${pad2(s.plan_index)}`), sel ? h("span.badge", "✓ SELECTED") : null),
       h("div.plain-body", { style: { padding: "4px" } }, cv),
-      h("div.plain-foot.schem-foot", h("span", h("span.ml", "Q"), h("span.mv", Number(c.qvci ?? 0).toFixed(2))), h("span", h("span.ml", "A"), h("span.mv", Number(c.aqi ?? 0).toFixed(2))), h("span.grow"), h("span.ml", `${(s.rooms || []).length} rooms`)));
+      h("div.plain-foot.schem-foot", h("span", h("span.ml", "V"), h("span.mv", Number(c.qvci ?? 0).toFixed(2))), h("span", h("span.ml", "A"), h("span.mv", Number(c.aqi ?? 0).toFixed(2))), h("span.grow"), h("span.ml", `${(s.rooms || []).length} rooms`)));
     let frameIdx = -1, timer = null, T = null, shown = null;
     el.draw = () => {
       const syn = getSynthesis(s);
@@ -315,7 +315,7 @@ export function mountSchematic(body, { store, goto }) {
       const x = (i % cols) * cell, y = head + Math.floor(i / cols) * (cell + 22), syn = getSynthesis(s);
       ctx.save(); ctx.translate(x, y); paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], cell, cell, P, { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, fontScale: 1.05, fitDims: sheetFit }); ctx.restore();
       ctx.font = `11px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "center";
-      ctx.fillText(`#${pad2(s.plan_index)}  Q ${s.computed.qvci.toFixed(2)}  A ${s.computed.aqi.toFixed(2)}`, x + cell / 2, y + cell + 8);
+      ctx.fillText(`#${pad2(s.plan_index)}  V ${s.computed.qvci.toFixed(2)}  A ${s.computed.aqi.toFixed(2)}`, x + cell / 2, y + cell + 8);
     });
     downloadBlob(await canvasBlob(cv), "schematic_batch.png");
   }

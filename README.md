@@ -5,7 +5,7 @@ Target2Plan goes from a room program and two plan-level targets, QVCI (Quality V
 Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in Architecture / Design Technology program at the University of Washington (Department of Architecture, College of Built Environments), supervised by Tomás Méndez Echenagucia.
 
 ![Schematic synthesis of four apartments, from one to four bedrooms, drawn at one scale](media/gallery/plans.gif)
-*Four apartments generated for the targets QVCI 0.70 and AQI 0.60, drawn at one scale: from the rooms at their connectivity positions to walls, doors, windows and furniture. Q and A are the QVCI and AQI each plan reaches.*
+*Four apartments generated for the targets QVCI 0.70 and AQI 0.60, drawn at one scale: from the rooms at their connectivity positions to walls, doors, windows and furniture. V and A are the QVCI and AQI each plan reaches.*
 
 ## Use it
 
@@ -25,7 +25,7 @@ The web app and the desktop app are the same program. The original prototype is 
 
 ## Gallery
 
-Four conventional apartment programs, generated with the web app's engine for the default site (north: vegetation view, 55 dB; south: urban view, 70 dB; east: no view, 65 dB; west: sky view, 60 dB), the default targets (QVCI 0.70, AQI 0.60) and the default generation parameters, with the room program drawn at common room sizes. Left, the schematic synthesis of a plan: the rooms start at their connectivity positions, pack together and get walls, doors, windows and furniture. Right, the connectivity graph of the same plan: the predicted edges appear one by one, then the secondary rooms move next to the room they connect to. Q and A under each plan are the QVCI and AQI it reaches.
+Four conventional apartment programs, generated with the web app's engine for the default site (north: vegetation view, 55 dB; south: urban view, 70 dB; east: no view, 65 dB; west: sky view, 60 dB), the default targets (QVCI 0.70, AQI 0.60) and the default generation parameters, with the room program drawn at common room sizes. Left, the schematic synthesis of a plan: the rooms start at their connectivity positions, pack together and get walls, doors, windows and furniture. Right, the connectivity graph of the same plan: the predicted edges appear one by one, then the secondary rooms move next to the room they connect to. V and A under each plan are the QVCI and AQI it reaches.
 
 <table>
   <tr>
@@ -138,7 +138,7 @@ Installers are built on GitHub by `.github/workflows/desktop.yml`. To publish a 
 2. Tick **Make a draft release** and click **Run workflow**.
 3. A few minutes later the **Releases** page holds a draft named after the version in `desktop/src-tauri/tauri.conf.json` (v1.0.0, ...), with the Windows, macOS and Linux installers and the notes from `.github/release-notes.md`. Check it and click **Publish release**.
 
-For the next version, raise `version` in `desktop/src-tauri/tauri.conf.json` and `desktop/src-tauri/Cargo.toml` first; a version that is already published is refused. A run without the tick, and every push to the `desktop-app` branch, only builds the installers and keeps them with the run, to download and try.
+For the next version, raise `version` in `desktop/src-tauri/tauri.conf.json` and `desktop/src-tauri/Cargo.toml` first; a version that is already published is refused. A run without the tick, and every push to the `next` branch (where the next version is prepared), only builds the installers and keeps them with the run, to download and try.
 
 To build on your own computer, install Rust and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system, then:
 

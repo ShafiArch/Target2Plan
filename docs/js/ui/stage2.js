@@ -192,7 +192,7 @@ export function mountZones(body, { store, runtime, goto }) {
     const cv = h("canvas");
     const c = t.computed;
     const metrics = h("div.metrics",
-      h("span.ml", "Q"), h("span.mv.acc", fmt(c.qvci, 3)), h("span.ms"),
+      h("span.ml", "V"), h("span.mv.acc", fmt(c.qvci, 3)), h("span.ms"),
       h("span.ml", "A"), h("span.mv.acc", fmt(c.aqi, 3)), h("span.ms"),
       h("span.ml", "SPL"), h("span.mv", fmt(c.avg_spl_dB, 0)), h("span.ms", "dB(A)"),
       h("span.ml", "Z"), h("span.mv", String(c.zone_spread)), h("span.ms"),
@@ -289,7 +289,7 @@ export function renderCardPNG(t, showWeights = false) {
   ctx.fillText(`#${pad2(t.table_index)}`, 10, 14);
   ctx.save(); ctx.translate(10, 28); drawZoneGrid(ctx, t, 104, 104, { showWeights, P, dot: 3.4 }); ctx.restore();
   const c = t.computed, mx = 128;
-  const rowsM = [["Q", fmt(c.qvci, 3), true, ""], ["A", fmt(c.aqi, 3), true, ""], ["SPL", fmt(c.avg_spl_dB, 0), false, "dB(A)"], ["Z", String(c.zone_spread), false, ""]];
+  const rowsM = [["V", fmt(c.qvci, 3), true, ""], ["A", fmt(c.aqi, 3), true, ""], ["SPL", fmt(c.avg_spl_dB, 0), false, "dB(A)"], ["Z", String(c.zone_spread), false, ""]];
   if (c.d_target != null) rowsM.push(["Δ", fmt(c.d_target, 3), false, ""]);
   rowsM.forEach(([l, v, acc, suf], i) => {
     const y = 36 + i * 20;

@@ -41,8 +41,8 @@ export function openZoneDetail(t, store) {
   const fullest = Math.max(0, ...Object.values(zc));
   const metrics = h("div.detail-sec", h("div.h", "PLAN METRICS"),
     barRow("QVCI", c.qvci, tg.present ? tg.qvci : null, rr.qvci), barRow("AQI", c.aqi, tg.present ? tg.aqi : null, rr.aqi),
-    c.d_target != null ? kv("Distance to target", `${c.d_target.toFixed(3)}  (|ΔQ| + |ΔA|)`) : null,
-    rr.qvci ? kv("Reachable", `Q ${rr.qvci[0].toFixed(2)} to ${rr.qvci[1].toFixed(2)} · A ${rr.aqi[0].toFixed(2)} to ${rr.aqi[1].toFixed(2)}`) : null,
+    c.d_target != null ? kv("Distance to target", `${c.d_target.toFixed(3)}  (|ΔV| + |ΔA|)`) : null,
+    rr.qvci ? kv("Reachable", `V ${rr.qvci[0].toFixed(2)} to ${rr.qvci[1].toFixed(2)} · A ${rr.aqi[0].toFixed(2)} to ${rr.aqi[1].toFixed(2)}`) : null,
     rr.aqi_collapsed ? h("div.hint", { style: { color: "var(--accent)" } }, "AQI cannot be changed on this site (every façade gives about the same indoor level).") : null,
     kv("Avg indoor level", `${fmt(c.avg_spl_dB, 1)} dB(A)`), kv("Zone spread", `${c.zone_spread} / 9`),
     kv("Fullest zone", `${fullest} room${fullest !== 1 ? "s" : ""}`),
