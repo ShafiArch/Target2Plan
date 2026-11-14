@@ -766,35 +766,49 @@ export function synthesize(schematic, alignment, boxW, boxH, unitsPerM = 1.0, ww
   }
   syn.rects = rects;
 
-  // 6. walls
-  const tol = Math.max(0.75, 0.03 * metre);
-  const walls = buildWalls(rects, tol);
-  syn.walls = walls;
-  phase("Walls, exterior then partitions");
-  for (let k = 1; k <= 10; k++) push("Walls, exterior then partitions", rects, "rect", { walls: k / 10 });
-
-  // 7. openings
-  const wwrByRoom = {};
-  for (const r of rooms) {
-    let v = r.wwr;
-    if (v == null && wwrByType) v = wwrByType[r.room_type] ?? 0;
-    wwrByRoom[r.room_id] = Number(v || 0);
-  }
-  const openings = buildOpenings(rects, walls, edges, metre, wwrByRoom);
-  const order = { open: 0, door: 1, balcony_door: 1, entry: 2, window: 3 };
-  const sortedOpen = sortBy(openings, (o) => [order[o.kind] ?? 9]);
-  syn.openings = sortedOpen;
-  phase("Doors from connectivity, windows from WWR");
-  for (let k = 1; k <= sortedOpen.length; k++) push("Doors from connectivity, windows from WWR", rects, "rect", { walls: 1, nOpen: k });
-
-  // 8. furniture
-  const furniture = [];
-  for (const r of rects) for (const piece of furnishRoom(r, sortedOpen, metre)) { piece.room_id = r.room_id; furniture.push(piece); }
-  syn.furniture = furniture;
-  phase("Furniture blocks");
-  for (let k = 1; k <= furniture.length; k++) push("Furniture blocks", rects, "rect", { walls: 1, nOpen: sortedOpen.length, nFurn: k });
+  // 6. to 8. walls, openings, furniture
+  const parts = buildPlanParts(rects, edges, metre, wwrForRooms(rooms, wwrByType));
+  recordPlanParts(parts, rects, push, phase);
+  Object.assign(syn, { walls: parts.walls, openings: parts.openings, furniture: parts.furniture });
   const finalLabel = "Schematic plan" + (syn.removed.length ? ` · removed ${syn.removed.join(", ")}` : "");
-  push(finalLabel, rects, "rect", { walls: 1, nOpen: sortedOpen.length, nFurn: furniture.length, hold: 12 });
+  push(finalLabel, rects, "rect", { walls: 1, nOpen: parts.openings.length, nFurn: parts.furniture.length, hold: 12 });
   syn.frames = frames; syn.phases = phases;
   return syn;
 }
+
+/** Planned WWR per room id (the room's own value, else the type's). */
+export function wwrForRooms(rooms, wwrByType = null) {
+  const out = {};
+  for (const r of rooms) {
+    let v = r.wwr;
+    if (v == null && wwrByType) v = wwrByType[r.room_type] ?? 0;
+    out[r.room_id] = Number(v || 0);
+  }
+  return out;
+}
+
+/** Steps 6 to 8 of the synthesis for rooms already in place (rects in drawing
+ *  units, `metre` units per metre): walls, doors and windows (sorted as they
+ *  are drawn) and furniture. The plan editor rebuilds an edited plan with it. */
+export function buildPlanParts(rects, edges, metre, wwrByRoom) {
+  const tol = Math.max(0.75, 0.03 * metre);
+  const walls = buildWalls(rects, tol);
+  const openings = buildOpenings(rects, walls, edges, metre, wwrByRoom);
+  const order = { open: 0, door: 1, balcony_door: 1, entry: 2, window: 3 };
+  const sortedOpen = sortBy(openings, (o) => [order[o.kind] ?? 9]);
+  const furniture = [];
+  for (const r of rects) for (const piece of furnishRoom(r, sortedOpen, metre)) { piece.room_id = r.room_id; furniture.push(piece); }
+  return { walls, openings: sortedOpen, furniture };
+}
+
+/** The frames of steps 6 to 8 (walls, then each opening, then each furniture piece). */
+export function recordPlanParts(parts, rects, push, phase) {
+  phase("Walls, exterior then partitions");
+  for (let k = 1; k <= 10; k++) push("Walls, exterior then partitions", rects, "rect", { walls: k / 10 });
+  phase("Doors from connectivity, windows from WWR");
+  for (let k = 1; k <= parts.openings.length; k++) push("Doors from connectivity, windows from WWR", rects, "rect", { walls: 1, nOpen: k });
+  phase("Furniture blocks");
+  for (let k = 1; k <= parts.furniture.length; k++) push("Furniture blocks", rects, "rect", { walls: 1, nOpen: parts.openings.length, nFurn: k });
+}
+
+export { snapshot as shapeSnapshot };

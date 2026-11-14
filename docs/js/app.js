@@ -141,7 +141,7 @@ function goto(stageId) {
   store.emit(`goto:${stageId}`);
 }
 
-const ctx = { store, runtime, goto };
+const ctx = { store, runtime, goto, saveSession: () => exportSession() };
 mountInputs(bodies.inputs, { ...ctx, goRoomProgram: () => { area.openRoomProgram(); goto("area"); } });
 const area = mountArea(bodies.area, ctx);
 mountZones(bodies.zones, ctx);
@@ -153,10 +153,11 @@ store.on("state", refreshDots);
 refreshDots();
 
 // ── sessions ────────────────────────────────────────────────────────
+/** Save the session file; resolves to false when the save dialog was cancelled. */
 function exportSession() {
   const d = new Date(), p = (n) => String(n).padStart(2, "0");
   const name = `target2plan_session_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.json`;
-  downloadBlob(new Blob([JSON.stringify(store.toSession(), null, 1)], { type: "application/json" }), name);
+  return downloadBlob(new Blob([JSON.stringify(store.toSession(), null, 1)], { type: "application/json" }), name);
 }
 fileIn.addEventListener("change", async () => {
   const f = fileIn.files[0];
@@ -165,8 +166,8 @@ fileIn.addEventListener("change", async () => {
   try {
     const s = JSON.parse(await f.text());
     const stage4 = store.fromSession(s);
-    if (stage4) schematic.rebuild(stage4);
-    toast(`Loaded ${f.name}`);
+    const edited = stage4 ? schematic.rebuild(stage4.selected, stage4.edits) : 0;
+    toast(edited ? `Loaded ${f.name} with ${edited} edited plan${edited > 1 ? "s" : ""}` : `Loaded ${f.name}`);
   } catch (err) {
     toast(`Could not load the session: ${err.message}`);
   }

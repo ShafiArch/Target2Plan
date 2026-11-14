@@ -1,17 +1,20 @@
 // stage4.js: Schematic Design. Plans synthesised from areas, zones and
 // connectivity (rooms slide into contact, walls, doors, windows, furniture),
-// replayed as an animation; the AQI x QVCI Pareto front; exports.
-import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput, DESKTOP } from "./common.js";
+// replayed as an animation; the AQI x QVCI Pareto front; the plan editor
+// (Edit selected); exports.
+import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, confirmAsk, FONT, MONO, numberInput, DESKTOP } from "./common.js";
 import { makeSchematics, paretoFrontIndices } from "../engine/schematic.js";
 import { getSynthesis, paintFrame, commonFit, roomAt, FURNITURE_STYLES, DEFAULT_FURNITURE } from "./schematicPaint.js";
 import { zipBlob, encodeGIF, encodeMP4 } from "./exporters.js";
 import { openSchematicDetail } from "./detail.js";
 import { showRoomPopup, closeRoomPopup } from "./roomPopup.js";
+import { openPlanEditor } from "./planEditor.js";
+import { applySessionEdits } from "./planEdit.js";
 
 const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* ignore */ } };
 
-export function mountSchematic(body, { store, goto }) {
+export function mountSchematic(body, { store, saveSession }) {
   // Show edges and the Pareto front start off (stored under new names, so earlier choices give way to these defaults)
   const opt = { edges: LS("schShowEdges", false), walls: LS("schWalls", true), furn: LS("schFurniture", DEFAULT_FURNITURE), planOnly: LS("schHidePareto", true), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
   if (!FURNITURE_STYLES.some(([v]) => v === opt.furn)) opt.furn = DEFAULT_FURNITURE;
@@ -51,27 +54,43 @@ export function mountSchematic(body, { store, goto }) {
   const bDom = h("button.chip", { on: { click: () => store.setStage4Selection(paretoFrontIndices(store.stage4.schematics)) } }, "◆ Select Pareto-dominant");
   const selLbl = h("span.sel-label");
   const bBatch = h("button.link-btn", { title: "Top plans by distance to the targets on one contact sheet", on: { click: saveBatch } }, "Save Batch");
+  const bEdit = h("button.btn-ghost.edit-sel", { title: "Open the selected plans in the plan editor: move and resize rooms, and walls, doors, windows, furniture and V / A follow", on: { click: editSelected } }, "✎ Edit selected");
   const bExport = h("button.btn-primary", { on: { click: exportSelected } }, "Export selected  →");
   const toolbar = h("div.toolbar.two-rows",
     h("div.row", h("div.tools", bRegen, h("span.tsep"), cEdges, cWalls, cFurn, cPlan)),
-    h("div.row", h("div.tools", h("span.sub", "Anim speed"), animIn, bReplay, bAnim, h("span.tsep"), bAll, bDom), h("span.grow"), selLbl, bBatch, bExport));
+    h("div.row", h("div.tools", h("span.sub", "Anim speed"), animIn, bReplay, bAnim, h("span.tsep"), bAll, bDom), h("span.grow"), selLbl, bBatch, bEdit, bExport));
   const bodyWrap = h("div.stage4-body", { style: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 } }, gridWrap, pareto);
   body.append(bodyWrap, toolbar);
 
-  function regenerate() {
+  // What the plans were synthesised from: going to Stage 4 again with nothing
+  // changed upstream keeps edited plans; anything else asks before they go.
+  let synthOf = { graphs: null, key: "" };
+  const upstreamKey = () => JSON.stringify([store.stage3.selected_idxs, store.inputs]);
+  function synth() {
     const st2 = store.stage2, st3 = store.stage3;
+    if (!st3.graphs.length || !st3.selected_idxs.length) return null;
+    synthOf = { graphs: st3.graphs, key: upstreamKey() };
+    return makeSchematics(st2.tables, st3.graphs, st3.selected_idxs, store.inputs);
+  }
+  async function regenerate(fromStage3 = false) {
+    const st3 = store.stage3;
     if (!st3.graphs.length || !st3.selected_idxs.length) return;
-    const sch = makeSchematics(st2.tables, st3.graphs, st3.selected_idxs, store.inputs);
-    store.setStage4(sch, []);
+    const edited = store.stage4.schematics.filter((s) => s.edit).length;
+    if (edited) {
+      if (fromStage3 && synthOf.graphs === st3.graphs && synthOf.key === upstreamKey()) return;
+      if (!(await confirmAsk(`Synthesising again replaces the plans, and the edits to ${edited === 1 ? "1 plan" : `${edited} plans`} are lost. Synthesise again?`))) return;
+    }
+    const sch = synth();
+    if (sch) store.setStage4(sch, []);
   }
 
   function card(s, sel) {
     const cv = h("canvas");
     const c = s.computed || {};
-    const el = h("div.plain-card.schem-card", { on: { click: () => toggle(s.plan_index), dblclick: () => { closeRoomPopup(); openSchematicDetail(s, store, opt); } } },
-      h("div.plain-head", h("span.idx", `#${pad2(s.plan_index)}`), sel ? h("span.badge", "✓ SELECTED") : null),
+    const el = h("div.plain-card.schem-card" + (s.edit ? ".edited" : ""), { on: { click: () => toggle(s.plan_index), dblclick: () => { closeRoomPopup(); openSchematicDetail(s, store, opt); } } },
+      h("div.plain-head", h("span.idx", `#${pad2(s.plan_index)}`), s.edit ? h("span.badge.edited", { title: "Edited in the plan editor: V and A are measured on the plan as drawn" }, "✎ EDITED") : null, sel ? h("span.badge.selb", "✓ SELECTED") : null),
       h("div.plain-body", { style: { padding: "4px" } }, cv),
-      h("div.plain-foot.schem-foot", h("span", h("span.ml", "V"), h("span.mv", Number(c.qvci ?? 0).toFixed(2))), h("span", h("span.ml", "A"), h("span.mv", Number(c.aqi ?? 0).toFixed(2))), h("span.grow"), h("span.ml", `${(s.rooms || []).length} rooms`)));
+      h("div.plain-foot.schem-foot", { title: s.edit ? "V and A of the plan as drawn" : "" }, h("span", h("span.ml", "V"), h("span.mv", Number(c.qvci ?? 0).toFixed(2))), h("span", h("span.ml", "A"), h("span.mv", Number(c.aqi ?? 0).toFixed(2))), h("span.grow"), h("span.ml", `${(s.rooms || []).length} rooms`)));
     let frameIdx = -1, timer = null, T = null, shown = null;
     el.draw = () => {
       const syn = getSynthesis(s);
@@ -149,8 +168,8 @@ export function mountSchematic(body, { store, goto }) {
   function refreshSelection() {
     const sel = new Set(store.stage4.selected_idxs);
     for (const c of cards) {
-      const on = sel.has(c.s.plan_index), head = c.querySelector(".plain-head"), badge = head.querySelector(".badge");
-      if (on && !badge) head.append(h("span.badge", "✓ SELECTED")); else if (!on && badge) badge.remove();
+      const on = sel.has(c.s.plan_index), head = c.querySelector(".plain-head"), badge = head.querySelector(".badge.selb");
+      if (on && !badge) head.append(h("span.badge.selb", "✓ SELECTED")); else if (!on && badge) badge.remove();
     }
     drawPareto(); refreshToolbar();
   }
@@ -159,7 +178,7 @@ export function mountSchematic(body, { store, goto }) {
     for (const b of [bAll, bDom, cEdges, cWalls, cFurn, bReplay, bAnim, bBatch]) b.disabled = !has;
     bRegen.disabled = !store.stage3.selected_idxs.length;
     selLbl.textContent = !has ? "" : n === 0 ? "No plans selected" : n === 1 ? "1 plan selected" : `${n} plans selected`;
-    bExport.disabled = !has || n === 0;
+    bExport.disabled = bEdit.disabled = !has || n === 0;
     const all = has && n === st.schematics.length;
     bAll.classList.toggle("active", all); bAll.textContent = all ? "■ Select none" : "■ Select all";
   }
@@ -276,9 +295,9 @@ export function mountSchematic(body, { store, goto }) {
   }
   function saveParetoCSV() {
     const sch = store.stage4.schematics, dom = new Set(paretoFrontIndices(sch)), sel = new Set(store.stage4.selected_idxs);
-    const rows = [["type", "index", "qvci", "aqi", "d_target", "avg_spl_dB", "zone_spread", "concentration", "pareto_dominant", "selected"]];
-    for (const s of sch) { const c = s.computed; rows.push(["plan", s.plan_index, c.qvci, c.aqi, c.d_target ?? "", c.avg_spl_dB ?? "", c.zone_spread ?? "", c.concentration ?? "", dom.has(s.plan_index) ? 1 : 0, sel.has(s.plan_index) ? 1 : 0]); }
-    store.stage2.sample_pool.forEach((p, i) => rows.push(["sample", i, p.qvci, p.aqi, p.d_target ?? "", "", "", p.concentration ?? "", "", ""]));
+    const rows = [["type", "index", "qvci", "aqi", "d_target", "avg_spl_dB", "zone_spread", "concentration", "pareto_dominant", "selected", "edited"]];
+    for (const s of sch) { const c = s.computed; rows.push(["plan", s.plan_index, c.qvci, c.aqi, c.d_target ?? "", c.avg_spl_dB ?? "", c.zone_spread ?? "", c.concentration ?? "", dom.has(s.plan_index) ? 1 : 0, sel.has(s.plan_index) ? 1 : 0, s.edit ? 1 : 0]); }
+    store.stage2.sample_pool.forEach((p, i) => rows.push(["sample", i, p.qvci, p.aqi, p.d_target ?? "", "", "", p.concentration ?? "", "", "", ""]));
     downloadBlob(new Blob([rows.map((r) => r.join(",")).join("\n") + "\n"], { type: "text/csv" }), "pareto_front.csv");
   }
 
@@ -287,14 +306,32 @@ export function mountSchematic(body, { store, goto }) {
     paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], size, size, P, { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showLabels: label, fontScale: size / 400 });
     const c = s.computed;
     ctx.font = `${13}px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    ctx.fillText(`#${pad2(s.plan_index)}   QVCI ${Number(c.qvci).toFixed(3)}   AQI ${Number(c.aqi).toFixed(3)}   ${(s.rooms || []).length} rooms`, 16, size + 20);
+    ctx.fillText(`#${pad2(s.plan_index)}${s.edit ? " (edited, as drawn)" : ""}   QVCI ${Number(c.qvci).toFixed(3)}   AQI ${Number(c.aqi).toFixed(3)}   ${(s.rooms || []).length} rooms`, 16, size + 20);
     return cv;
+  }
+  // ── plan editor ───────────────────────────────────────────────────
+  function editSelected() {
+    const st = store.stage4, sel = st.schematics.filter((s) => st.selected_idxs.includes(s.plan_index));
+    if (!sel.length) return toast("Select at least one plan to edit.");
+    closeRoomPopup();
+    openPlanEditor(sel, { store, opt, onApply: planChanged, saveSession });
+  }
+  /** A plan was replaced in the editor: its card, the shared scale and the Pareto front follow. */
+  function planChanged(s) {
+    fitDims = commonFit(store.stage4.schematics);
+    const i = cards.findIndex((c) => c.s === s);
+    if (i >= 0) {
+      cards[i].stop();
+      const c = card(s, store.stage4.selected_idxs.includes(s.plan_index));
+      cards[i].replaceWith(c); cards[i] = c;
+    }
+    sizeCards(); cards.forEach((c) => c.draw()); drawPareto();
   }
   async function exportSelected() {
     const st = store.stage4, sel = st.schematics.filter((s) => st.selected_idxs.includes(s.plan_index));
     if (!sel.length) return toast("Select at least one schematic card before exporting.");
     const files = [];
-    for (const s of sel) files.push({ name: `schematic_${pad2(s.plan_index)}.png`, blob: await canvasBlob(renderPlanPNG(s)) });
+    for (const s of sel) files.push({ name: `schematic_${pad2(s.plan_index)}${s.edit ? "_edited" : ""}.png`, blob: await canvasBlob(renderPlanPNG(s)) });
     const saved = files.length === 1 ? await downloadBlob(files[0].blob, files[0].name) : await downloadBlob(await zipBlob(files), "schematics.png.zip");
     if (saved) toast(`Saved ${files.length} plan${files.length > 1 ? "s" : ""}.`);
   }
@@ -315,7 +352,7 @@ export function mountSchematic(body, { store, goto }) {
       const x = (i % cols) * cell, y = head + Math.floor(i / cols) * (cell + 22), syn = getSynthesis(s);
       ctx.save(); ctx.translate(x, y); paintFrame(ctx, s, syn, syn.frames[syn.frames.length - 1], cell, cell, P, { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, fontScale: 1.05, fitDims: sheetFit }); ctx.restore();
       ctx.font = `11px ${MONO}`; ctx.fillStyle = P.ink2; ctx.textAlign = "center";
-      ctx.fillText(`#${pad2(s.plan_index)}  V ${s.computed.qvci.toFixed(2)}  A ${s.computed.aqi.toFixed(2)}`, x + cell / 2, y + cell + 8);
+      ctx.fillText(`#${pad2(s.plan_index)}${s.edit ? " edited" : ""}  V ${s.computed.qvci.toFixed(2)}  A ${s.computed.aqi.toFixed(2)}`, x + cell / 2, y + cell + 8);
     });
     downloadBlob(await canvasBlob(cv), "schematic_batch.png");
   }
@@ -350,8 +387,18 @@ export function mountSchematic(body, { store, goto }) {
   store.on("stage3", () => { if (!store.stage4.schematics.length) render(); else refreshToolbar(); });
   store.on("theme", () => { cards.forEach((c) => c.draw()); drawPareto(); });
   store.on("reset", () => { lastSch = store.stage4.schematics; render(); });
-  store.on("goto:schematic", () => regenerate());
+  store.on("goto:schematic", () => regenerate(true));
   setFixed(opt.fixed);
   render();
-  return { rebuild: (selected) => { regenerate(); if (selected) store.setStage4Selection(selected); } };
+  return {
+    /** Stage 4 of a loaded session: the plans again, its edits, its selection. Returns how many edits applied. */
+    rebuild(selected, edits = null) {
+      const sch = synth();
+      if (!sch) return 0;
+      const n = applySessionEdits(sch, edits, store.inputs);
+      store.setStage4(sch, []);
+      if (selected) store.setStage4Selection(selected);
+      return n;
+    },
+  };
 }

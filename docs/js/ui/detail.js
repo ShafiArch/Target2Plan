@@ -95,17 +95,19 @@ export function openZoneDetail(t, store) {
 }
 
 export function openSchematicDetail(s, store, opt) {
-  const c = s.computed || {}, tg = s.targets || {}, rr = s.reachable || {};
+  const c = s.computed || {}, tg = s.targets || {}, rr = s.reachable || {}, zp = s.edit && s.orig ? s.orig.computed : null;
   const cv = h("canvas");
   const sel = () => store.stage4.selected_idxs.includes(s.plan_index);
   const toggle = () => { const st = new Set(store.stage4.selected_idxs); if (st.has(s.plan_index)) st.delete(s.plan_index); else st.add(s.plan_index); store.setStage4Selection([...st]); return st.has(s.plan_index); };
   const metrics = h("div.detail-sec", h("div.h", "PLAN METRICS"),
     barRow("QVCI", Number(c.qvci || 0), tg.present ? tg.qvci : null, rr.qvci), barRow("AQI", Number(c.aqi || 0), tg.present ? tg.aqi : null, rr.aqi),
     c.d_target != null ? kv("Distance to target", Number(c.d_target).toFixed(3)) : null,
-    kv("Avg indoor level", `${fmt(c.avg_spl_dB, 1)} dB(A)`), kv("Zone spread", `${c.zone_spread ?? "-"} / 9`));
+    kv("Avg indoor level", `${fmt(c.avg_spl_dB, 1)} dB(A)`), kv("Zone spread", `${c.zone_spread ?? "-"} / 9`),
+    zp ? kv("Zone plan", `V ${fmt(zp.qvci, 2)} · A ${fmt(zp.aqi, 2)}`) : null,
+    zp ? h("div.hint.edited-note", "Edited plan: V and A are measured on the plan as drawn, each room in the zone of the façades it touches (* marks a zone that differs from the zone plan).") : null);
   const rows = (s.rooms || []).map((r) => h("tr.clickable", { title: "Room details", on: { click: (e) => { e.stopPropagation(); showRoomPopup(r, e.clientX, e.clientY, store.inputs); } } },
     h("td", r.room_id.replace(/_/g, " ")), h("td", fmt(r.area_m2, 1)),
-    h("td", r.zone_assignment == null ? "-" : ZONE_LABELS[r.zone_assignment]), h("td", fmt(r.wwr, 2)),
+    h("td", r.zone_assignment == null ? "-" : ZONE_LABELS[r.zone_assignment] + (s.edit && r.planned_zone != null && r.planned_zone !== r.zone_assignment ? "*" : "")), h("td", fmt(r.wwr, 2)),
     h("td" + (r.quality_view_score == null ? ".dim" : r.scored && r.quality_view_score >= 0.5 ? ".acc" : ""), fmt(r.quality_view_score, 2)),
     h("td" + (r.acoustic_score == null ? ".dim" : r.scored && r.acoustic_ok ? ".acc" : ""), fmt(r.acoustic_score, 2)),
     h("td" + (r.est_avg_spl_dB == null ? ".dim" : ""), fmt(r.est_avg_spl_dB, 1))));
@@ -133,7 +135,7 @@ export function openSchematicDetail(s, store, opt) {
   };
   let close;
   const panel = h("div.detail",
-    h("div.detail-head", h("span.h", "PLAN"), h("span.idx", `#${pad2(s.plan_index)}`), h("span.sub", `· ${(s.rooms || []).length} rooms · ${(s.edges || []).length} edges${syn.removed.length ? ` · removed ${syn.removed.join(", ")}` : ""}`), h("span.grow"),
+    h("div.detail-head", h("span.h", "PLAN"), h("span.idx", `#${pad2(s.plan_index)}`), s.edit ? h("span.badge.edited", "✎ EDITED") : null, h("span.sub", `· ${(s.rooms || []).length} rooms · ${(s.edges || []).length} edges${syn.removed.length ? ` · removed ${syn.removed.join(", ")}` : ""}`), h("span.grow"),
       h("button.link-btn", { on: { click: replay } }, "↻ Replay synthesis"), selectButton(sel(), toggle), h("button.icon-btn", { title: "Close (Esc)", on: { click: () => close() } }, "✕")),
     h("div.detail-body", h("div.detail-canvas", cv), h("div.detail-side", metrics, rooms)));
   close = overlay(panel, () => { clearInterval(timer); ro.disconnect(); closeRoomPopup(); });

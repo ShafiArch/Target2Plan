@@ -373,6 +373,56 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .rp-chip.fail { color: var(--ink3); text-decoration: line-through; }
 .rp-chip.na { color: var(--ink3); background: var(--surface2); }
 
+/* ── plan editor (Stage 4, Edit selected): the plan fills the window ── */
+.badge.edited { background: rgb(var(--accent-rgb) / 0.12); color: var(--accent); }
+.badge.edited + .badge { margin-left: 4px; }
+.detail-head .badge { margin-left: 2px; }
+.edited-note { margin-top: 6px; color: var(--ink2); }
+.toolbar .edit-sel { padding: 5px 12px; font-size: 11.5px; border-radius: 6px; color: var(--ink); }
+.toolbar .edit-sel:disabled { color: var(--ink3); border-color: var(--border); }
+.plan-editor { position: fixed; inset: 0; z-index: 48; display: flex; flex-direction: column; background: var(--surface); }
+.pe-head { flex: none; display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--border); }
+.pe-head .h { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--ink3); }
+.pe-head .idx { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.plan-editor .grow { flex: 1; }
+.pe-switch { display: inline-flex; align-items: center; gap: 2px; background: var(--surface2); border-radius: 14px; padding: 0 2px; }
+.pe-switch .icon-btn { width: 24px; height: 24px; border-radius: 12px; font-size: 15px; line-height: 1; }
+.pe-switch .icon-btn:disabled { opacity: 0.3; border-color: transparent; color: var(--ink2); }
+.pe-count { font-size: 11px; color: var(--ink2); padding: 0 4px; white-space: nowrap; }
+.pe-metrics { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.pe-lab { font-size: 9px; font-weight: 600; letter-spacing: 1px; color: var(--ink3); text-transform: uppercase; }
+.pe-k { font-size: 11px; color: var(--ink2); margin-left: 4px; }
+.pe-v { font-family: var(--mono); font-size: 16px; font-weight: 600; color: var(--accent); min-width: 38px; }
+.pe-ref { display: inline-flex; gap: 12px; margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--border); font-family: var(--mono); font-size: 10.5px; color: var(--ink3); }
+.pe-tools { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 16px; border-bottom: 1px solid var(--border); }
+.pe-body { flex: 1; min-height: 0; display: flex; }
+.pe-canvas { flex: 1; min-width: 0; position: relative; }
+.pe-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; outline: none; }
+.pe-side { flex: none; width: 340px; overflow-y: auto; padding: 12px 14px 16px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 16px; }
+.pe-room-name { font-size: 14px; font-weight: 600; text-transform: capitalize; margin: -2px 0 8px; }
+.pe-size { display: flex; gap: 14px; margin-bottom: 8px; }
+.pe-size label { display: flex; flex-direction: column; gap: 3px; }
+.pe-num { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink2); }
+.pe-num input { width: 78px; font-family: var(--mono); }
+.pe-notes { margin: 0; padding-left: 16px; font-size: 11px; line-height: 1.5; color: var(--bad); }
+.pe-ok { font-size: 11px; color: var(--ink2); }
+.pe-side .kv { gap: 12px; }
+.pe-side .kv span:first-child { white-space: nowrap; }
+.pe-side .kv span:last-child { text-align: right; }
+.pe-side .detail-tbl tr.sel td { background: var(--accent-soft); color: var(--accent); }
+.pe-side .detail-tbl + .hint { margin-top: 6px; }
+.pe-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--border); }
+.pe-foot .btn-ghost { padding: 5px 12px; font-size: 11.5px; border-radius: 6px; }
+.pe-status { font-size: 11px; color: var(--ink3); white-space: nowrap; }
+.pe-status.changed { color: var(--accent); font-weight: 600; }
+.pe-export { position: relative; display: inline-flex; }
+.pe-menu { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 2; min-width: 280px; padding: 4px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 32px rgb(0 0 0 / 0.18); }
+.pe-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 10px; border: none; border-radius: 6px; background: none; text-align: left; }
+.pe-menu button:hover, .pe-menu button:focus-visible { background: var(--accent-soft); outline: none; }
+.pe-menu button > span:first-child { font-size: 12px; font-weight: 600; color: var(--ink); }
+.pe-menu button:hover > span:first-child { color: var(--accent); }
+.pe-menu .sub { font-size: 10px; }
+
 /* ── small screens (phones): one stage per screen, stage tabs under the
    header, and each stage a single scrolling page with its toolbar pinned at
    the bottom. Nothing here applies above 760 px. ───────────────────────── */
@@ -463,4 +513,21 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
   .detail-body { flex-direction: column; gap: 10px; padding: 10px; }
   .detail-canvas, .detail-side { min-width: 0; }
   .detail-canvas { max-height: none; }
+
+  /* plan editor: the plan on top, its panel below; tools and buttons scroll or wrap */
+  .pe-head { flex-wrap: wrap; row-gap: 4px; padding: 6px 8px 6px 12px; min-height: 0; }
+  .pe-metrics { order: 5; flex: 1 1 100%; flex-wrap: wrap; row-gap: 2px; }
+  .pe-ref { flex: 1 1 100%; margin-left: 0; padding-left: 0; border-left: none; gap: 10px; }
+  .pe-tools { overflow-x: auto; padding: 5px 10px; scrollbar-width: none; }
+  .pe-tools::-webkit-scrollbar { display: none; }
+  .pe-tools > * { flex: none; }
+  .pe-tools .grow { display: none; }
+  .pe-body { flex-direction: column; }
+  .pe-canvas { flex: 1 1 58%; min-height: 220px; }
+  .pe-side { width: auto; flex: 1 1 42%; border-left: none; border-top: 1px solid var(--border); padding: 10px 12px 14px; gap: 12px; }
+  .pe-foot { flex-wrap: wrap; row-gap: 6px; padding: 7px 10px; }
+  .pe-foot .grow { display: none; }
+  .pe-status { flex: 1 1 100%; }
+  .pe-foot .btn-primary { flex: 1 1 auto; }
+  .pe-menu { right: auto; left: 0; min-width: 250px; }
 }

@@ -86,12 +86,20 @@ class Store {
       app: "Target2Plan", format: "target2plan-session", version: 1, saved: new Date().toISOString(),
       inputs: strip(this.inputs), drawn_rooms: strip(this.drawnRooms),
       stage1: strip(this.stage1), stage2: strip(this.stage2), stage3: strip(this.stage3),
-      stage4: { generated: this.stage4.schematics.length > 0, selected_idxs: [...this.stage4.selected_idxs] },
+      stage4: { generated: this.stage4.schematics.length > 0, selected_idxs: [...this.stage4.selected_idxs], ...this.stage4Edits() },
       ui: { theme: this.ui.theme },
     };
   }
 
-  /** Load a saved session. Returns the Stage 4 selection when Stage 4 should be
+  /** Plans changed in the plan editor, as {edits: {plan_index: rooms in metres}} (none: {}).
+   *  Stage 4 itself is not stored; a loaded session rebuilds it and applies these. */
+  stage4Edits() {
+    const edits = {};
+    for (const s of this.stage4.schematics) if (s.edit) edits[s.plan_index] = s.edit.rooms.map((r) => ({ ...r }));
+    return Object.keys(edits).length ? { edits } : {};
+  }
+
+  /** Load a saved session. Returns {selected, edits} when Stage 4 should be
    *  rebuilt from Stages 2 and 3 (it is not stored), otherwise null. */
   fromSession(s) {
     if (!s || typeof s !== "object" || !s.inputs) throw new Error("Not a Target2Plan session file.");
@@ -115,7 +123,7 @@ class Store {
     this.stage4 = e.stage4;
     this.epoch++;
     this.emit("reset", "stage1", "stage2", "stage3", "stage4");
-    return s.stage4 && s.stage4.generated ? s.stage4.selected_idxs || [] : null;
+    return s.stage4 && s.stage4.generated ? { selected: s.stage4.selected_idxs || [], edits: s.stage4.edits || null } : null;
   }
 }
 

@@ -501,18 +501,23 @@ export class GeometryCanvas {
     return `dots every ${stepTxt} · wheel to zoom · middle-drag or Space + drag to pan · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · ${MOD_KEY}+Z undo · Alt: no snapping`;
   }
 
-  draw() {
-    const { ctx, w, h: H } = fitCanvas(this.cv);
-    const P = palette(), s = this.pxPerM, [ox, oy] = this.origin();
-    // dot grid: 1 m (5 m when zoomed far out), or 1 ft / 5 ft
+  /** Dot grid (1 m, or 5 m when zoomed far out; 1 ft / 5 ft) and the hint line. */
+  drawGrid(ctx, P, w, H, alpha = 0.55) {
+    const s = this.pxPerM, [ox, oy] = this.origin();
     const stepM = this.units === "m" ? (s >= 9 ? 1 : 5) : s / FT_PER_M >= 12 ? 1 / FT_PER_M : 5 / FT_PER_M;
     const sp = stepM * s;
-    ctx.fillStyle = P.a("ink3", 0.55);
+    ctx.fillStyle = P.a("ink3", alpha);
     const x0 = ox - Math.ceil(ox / sp) * sp, y0 = oy - Math.ceil(oy / sp) * sp;
     for (let x = x0; x <= w; x += sp) for (let y = y0; y <= H; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 2 * Math.PI); ctx.fill(); }
     ctx.font = `9px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const stepTxt = this.units === "m" ? `${stepM} m` : stepM < 1 ? "1 ft" : "5 ft";
     ctx.fillText(this.hintText(stepTxt), 6, H - 10);
+  }
+
+  draw() {
+    const { ctx, w, h: H } = fitCanvas(this.cv);
+    const P = palette();
+    this.drawGrid(ctx, P, w, H);
     if (!this.rooms.length) {
       ctx.font = `12px ${FONT}`; ctx.textAlign = "center"; ctx.fillText(COARSE() ? "Tap a room type above to add it, then drag an edge or corner to size it" : "Drop rooms here, then drag an edge or corner to size them", w / 2, H / 2);
     }

@@ -54,6 +54,26 @@ export function palette() {
   out.a = (key, alpha) => { const v = out[`${key}Rgb`]; return `rgba(${v[0]},${v[1]},${v[2]},${alpha})`; };
   return out;
 }
+/** Palette of a named theme (exports draw on white whatever theme is on screen). */
+export function themePalette(name) {
+  const keys = ["bg", "surface", "surface2", "border", "ink", "ink2", "ink3", "accent", "accent2", "accent-soft", "good", "warn", "bad", "teal"];
+  let rule = null;
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { continue; }
+    for (const r of rules || []) if (r.selectorText && r.selectorText.includes(`[data-theme="${name}"]`) && r.style.getPropertyValue("--ink-rgb")) { rule = r; break; }
+    if (rule) break;
+  }
+  if (!rule) return palette();
+  const out = {};
+  for (const k of keys) {
+    const v = rule.style.getPropertyValue(`--${k}-rgb`).trim().split(/\s+/).map(Number);
+    out[k.replace("-", "_")] = `rgb(${v.join(",")})`;
+    out[`${k.replace("-", "_")}Rgb`] = v;
+  }
+  out.a = (key, alpha) => { const v = out[`${key}Rgb`]; return `rgba(${v[0]},${v[1]},${v[2]},${alpha})`; };
+  return out;
+}
 export const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
 
 /** Size a canvas to its CSS box at the device pixel ratio; returns {ctx, w, h} in CSS pixels. */
@@ -86,7 +106,7 @@ export function text(ctx, str, x, y, { font = `11px ${FONT}`, color = "#000", al
   ctx.fillText(str, x, y);
 }
 
-const SAVE_TYPES = { png: "PNG image", zip: "ZIP archive", gif: "GIF animation", mp4: "MP4 video", json: "Target2Plan session", csv: "CSV table" };
+const SAVE_TYPES = { png: "PNG image", jpg: "JPEG image", pdf: "PDF document", dxf: "DXF drawing", zip: "ZIP archive", gif: "GIF animation", mp4: "MP4 video", json: "Target2Plan session", csv: "CSV table" };
 
 /** Save a file: a browser downloads it, the desktop app asks where to save it.
  *  Resolves to true once the file is saved (false if the dialog was cancelled). */

@@ -1,7 +1,7 @@
 // schematicPaint.js: draws one synthesis frame (app/widgets/schematic_canvas.paint_frame):
 // connectivity edges, room fills, double-line walls with jambs, windows, door
 // leaves with swings, the entrance marker, furniture, labels, compass, caption.
-import { roomColor, hexA, FONT } from "./common.js";
+import { roomColor as themeRoomColor, hexA, FONT } from "./common.js";
 import { WALL_EXT_M, WALL_INT_M, synthesize, referenceBox } from "../engine/schematic.js";
 
 /** Furniture drawing styles for the Schematic toolbar (value, label). */
@@ -11,10 +11,16 @@ export const FURNITURE_STYLES = [
 ];
 export const DEFAULT_FURNITURE = "line50";
 
-/** Cached synthesis per schematic (alignment C, like the prototype's Stage 4). */
+/** Cached synthesis per schematic (alignment C, like the prototype's Stage 4).
+ *  An edited plan (see ui/planEdit.js) keeps its rebuilt plan here instead. */
 export function getSynthesis(s) {
-  if (!s._syn) { const [bw, bh] = referenceBox(s); Object.defineProperty(s, "_syn", { value: synthesize(s, "C", bw, bh), enumerable: false, writable: true }); }
+  if (!s._syn) Object.defineProperty(s, "_syn", { value: originalSynthesis(s), enumerable: false, writable: true, configurable: true });
   return s._syn;
+}
+/** The synthesis of the plan as generated, also for a plan that was edited since. */
+export function originalSynthesis(s) {
+  if (!s._origSyn) { const [bw, bh] = referenceBox(s); Object.defineProperty(s, "_origSyn", { value: synthesize(s, "C", bw, bh), enumerable: false, writable: true, configurable: true }); }
+  return s._origSyn;
 }
 
 // ── framing ─────────────────────────────────────────────────────────
@@ -87,7 +93,10 @@ function cornerFree(wl, syn, end) {
  *  commonFit) gives several cards the same scale; without it the finished plan
  *  fills the view. */
 export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
-  const { showEdges = true, showLabels = false, showWalls = true, showCaption = false, fontScale = 1, showCompass = true, fitDims = null } = o;
+  const { showEdges = true, showLabels = false, showWalls = true, showCaption = false, fontScale = 1, fitDims = null } = o;
+  // o.transform {scale, ox, oy} places the plan (the plan editor's zoom and pan; exports to scale);
+  // o.roomColor overrides the theme's room colours (exports)
+  const showCompass = o.transform ? false : o.showCompass ?? true, roomColor = o.roomColor || themeRoomColor;
   // furniture style: line | line20 | line50 | fill20 | fill50 | none (see FURNITURE_STYLES)
   const furniture = o.furniture ?? (o.showFurniture === false ? "none" : DEFAULT_FURNITURE);
   const B = planBounds(syn);
@@ -97,8 +106,9 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
   const availW = Math.max(1, w - 2 * margin), availH = Math.max(1, h - 2 * margin);
   const fit = (bw, bh) => Math.min(availW / Math.max(bw, 1e-9), availH / Math.max(bh, 1e-9));
   const sizes = fitDims && fitDims.length ? fitDims : [[B.final[2] - B.final[0], B.final[3] - B.final[1]]];
-  const scale = Math.min(...sizes.map(([fw, fh]) => fit(fw, fh)), fit(view[2] - view[0], view[3] - view[1]));
-  const ox = w / 2 - ((view[0] + view[2]) / 2) * scale, oy = h / 2 - ((view[1] + view[3]) / 2) * scale;
+  let scale = Math.min(...sizes.map(([fw, fh]) => fit(fw, fh)), fit(view[2] - view[0], view[3] - view[1]));
+  let ox = w / 2 - ((view[0] + view[2]) / 2) * scale, oy = h / 2 - ((view[1] + view[3]) / 2) * scale;
+  if (o.transform) ({ scale, ox, oy } = o.transform);
   const TX = (x) => ox + x * scale, TY = (y) => oy + y * scale;
   const shapes = frame.shapes || [];
   const byId = new Map(shapes.map((s) => [s.room_id, s]));
@@ -110,6 +120,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
 
   // 1. connectivity edges, dashed, behind everything
   if (showEdges) {
+    ctx.layer?.("A-ANNO-EDGE");   // CAD layer of what follows (planExport.js records the drawing; a canvas has no layer())
     ctx.strokeStyle = P.a("ink3", 0.43); ctx.lineWidth = 0.7; ctx.setLineDash([1.4, 1.4]);
     for (const e of schematic.edges || []) {
       const a = byId.get(e.source), b = byId.get(e.target);
@@ -122,6 +133,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
   // 2. rooms (circle → rectangle morph)
   const fillAlpha = wallsFrac > 0 || nFurn > 0 ? 0.55 : 0.9;
   for (const s of shapes) {
+    ctx.layer?.(`A-AREA-${String(s.room.room_type).toUpperCase()}`);
     ctx.fillStyle = hexA(roomColor(s.room.room_type), fillAlpha);
     ctx.strokeStyle = P.surface; ctx.lineWidth = 0.8;
     ctx.beginPath();
@@ -184,6 +196,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
         ctx.stroke();
       }
     };
+    ctx.layer?.("A-WALL");
     ctx.fillStyle = P.surface;
     const pieceLists = bands.map(([rect, wl]) => {
       const pl = pieces(wl, rect);
@@ -204,6 +217,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
       }
     });
     if (wallsFrac >= 0.5) {
+      ctx.layer?.("A-WALL-RAIL");
       ctx.strokeStyle = P.ink2; ctx.lineWidth = Math.max(0.5, (0.6 * scale) / 2);
       for (const wl of rails) { ctx.beginPath(); ctx.moveTo(TX(wl.x1), TY(wl.y1)); ctx.lineTo(TX(wl.x2), TY(wl.y2)); ctx.stroke(); }
     }
@@ -214,6 +228,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     for (const op of opens) {
       const [nx, ny] = op.wall.out;
       if (op.kind === "window") {
+        ctx.layer?.("A-GLAZ");
         ctx.strokeStyle = P.a("ink2", 0.8); ctx.lineWidth = winW;
         for (const f of [0, 0.5, 1]) {
           const off = tExt * f;
@@ -228,6 +243,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
         const ux = (fx - hx) / dw, uy = (fy - hy) / dw;
         let px = -uy, py = ux;
         if ((ix - hx) * px + (iy - hy) * py < 0) { px = uy; py = -ux; }
+        ctx.layer?.("A-DOOR");
         ctx.strokeStyle = P.ink2; ctx.lineWidth = leafW;
         ctx.beginPath(); ctx.moveTo(TX(hx), TY(hy)); ctx.lineTo(TX(hx + px * dw), TY(hy + py * dw)); ctx.stroke();
         const a0 = Math.atan2(py, px), a1 = Math.atan2(uy, ux);
@@ -236,6 +252,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
         ctx.beginPath(); ctx.arc(TX(hx), TY(hy), dw * scale, a0, a0 + delta, delta < 0); ctx.stroke();
         if (op.kind === "entry") {
           const mx = (hx + fx) / 2, my = (hy + fy) / 2, s_ = 0.35 * metre;
+          ctx.layer?.("A-ENTRY");
           ctx.fillStyle = P.accent; ctx.beginPath();
           ctx.moveTo(TX(mx + nx * (tExt + 0.05 * metre)), TY(my + ny * (tExt + 0.05 * metre)));
           ctx.lineTo(TX(mx + nx * (tExt + s_) + ux * s_ * 0.6), TY(my + ny * (tExt + s_) + uy * s_ * 0.6));
@@ -250,6 +267,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
   // white: a line drawing at full, 0.5 or 0.2 strength, or white blocks at
   // 0.2 / 0.5 over the room colour with a white outline
   if (nFurn > 0) {
+    ctx.layer?.("A-FURN");
     const filled = furniture.startsWith("fill"), k = furniture.endsWith("20") ? 0.2 : furniture.endsWith("50") ? 0.5 : 1;
     const white = (a) => `rgba(255,255,255,${a})`, lw = Math.max(0.7, metre * scale * 0.014);
     if (filled) { ctx.fillStyle = white(k); ctx.strokeStyle = white(0.95); ctx.lineWidth = lw; }
@@ -265,6 +283,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
   // 6. labels (detail view, exports): plain ink snapped to whole pixels, with
   // no halo and nothing behind the text, so the furniture stays in view.
   if (showLabels) {
+    ctx.layer?.("A-ANNO-TEXT");
     const fs1 = `500 ${8.5 * fontScale}px ${FONT}`, fs2 = `400 ${7.5 * fontScale}px ${FONT}`, k = fontScale;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (const s of shapes) {
@@ -279,6 +298,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
 
   // 7. compass letters just outside the plan + caption
   const fs = fontScale;
+  ctx.layer?.("A-ANNO-TEXT");
   if (showCompass) {
     const e = edge / 2, mx = Math.round(w / 2), my = Math.round(h / 2);
     const top = Math.max(e, TY(view[1]) - e), bottom = Math.min(h - e, TY(view[3]) + e);
