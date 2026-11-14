@@ -255,11 +255,8 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     const rest = plans.findIndex((p, k) => k > cur);
     if (rest >= 0) { cur = -1; load(rest); } else close();
   }
-  function replace() {
-    if (ed.overlaps.length) {
-      confirmAsk("Some rooms overlap. Put the plan in as it is?").then((ok) => { if (ok) { const s = applyCurrent(); toast(`Plan #${pad2(s.plan_index)} replaced.`); nextOrClose(); } });
-      return;
-    }
+  async function replace() {
+    if (ed.overlaps.length && !(await confirmAsk("Some rooms overlap. Put the plan in as it is?"))) return;
     const s = applyCurrent();
     toast(s.edit ? `Plan #${pad2(s.plan_index)} replaced with the edited plan.` : `Plan #${pad2(s.plan_index)} is back as generated.`);
     nextOrClose();
