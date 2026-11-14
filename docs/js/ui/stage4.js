@@ -87,7 +87,7 @@ export function mountSchematic(body, { store, saveSession }) {
   function card(s, sel) {
     const cv = h("canvas");
     const c = s.computed || {};
-    const el = h("div.plain-card.schem-card" + (s.edit ? ".edited" : ""), { on: { click: () => toggle(s.plan_index), dblclick: () => { closeRoomPopup(); openSchematicDetail(s, store, opt); } } },
+    const el = h("div.plain-card.schem-card" + (s.edit ? ".edited" : ""), { on: { click: () => toggle(s.plan_index), dblclick: () => { closeRoomPopup(); openSchematicDetail(s, store, opt, { onEdit: (p) => openEditor([p]) }); } } },
       h("div.plain-head", h("span.idx", `#${pad2(s.plan_index)}`), s.edit ? h("span.badge.edited", { title: "Edited in the plan editor: V and A are measured on the plan as drawn" }, "✎ EDITED") : null, sel ? h("span.badge.selb", "✓ SELECTED") : null),
       h("div.plain-body", { style: { padding: "4px" } }, cv),
       h("div.plain-foot.schem-foot", { title: s.edit ? "V and A of the plan as drawn" : "" }, h("span", h("span.ml", "V"), h("span.mv", Number(c.qvci ?? 0).toFixed(2))), h("span", h("span.ml", "A"), h("span.mv", Number(c.aqi ?? 0).toFixed(2))), h("span.grow"), h("span.ml", `${(s.rooms || []).length} rooms`)));
@@ -313,8 +313,11 @@ export function mountSchematic(body, { store, saveSession }) {
   function editSelected() {
     const st = store.stage4, sel = st.schematics.filter((s) => st.selected_idxs.includes(s.plan_index));
     if (!sel.length) return toast("Select at least one plan to edit.");
+    openEditor(sel);
+  }
+  function openEditor(list) {
     closeRoomPopup();
-    openPlanEditor(sel, { store, opt, onApply: planChanged, saveSession });
+    openPlanEditor(list, { store, opt, onApply: planChanged, saveSession });
   }
   /** A plan was replaced in the editor: its card, the shared scale and the Pareto front follow. */
   function planChanged(s) {

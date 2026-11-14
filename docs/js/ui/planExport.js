@@ -256,11 +256,14 @@ async function pdfBytes(ops, PW, PH, title) {
 }
 
 // ═══════════════════════════════ DXF ════════════════════════════════════
-// AutoCAD colour index per layer (7 is black on a white background)
+// AutoCAD colour index per layer, near the app's own colours: rooms in their
+// muted hues, doors, glazing and rails grey, the entrance in the app's crimson
+// (7 draws black on a white background, white on a dark one)
 const LAYERS = {
-  "A-AREA-LIVING": 8, "A-AREA-BEDROOM": 1, "A-AREA-KITCHEN": 40, "A-AREA-BATHROOM": 221, "A-AREA-BALCONY": 9,
-  "A-WALL": 7, "A-WALL-RAIL": 8, "A-GLAZ": 4, "A-DOOR": 140, "A-ENTRY": 1, "A-FURN": 9, "A-ANNO-TEXT": 7, "A-ANNO-EDGE": 8,
+  "A-AREA-LIVING": 25, "A-AREA-BEDROOM": 242, "A-AREA-KITCHEN": 42, "A-AREA-BATHROOM": 241, "A-AREA-BALCONY": 253,
+  "A-WALL": 7, "A-WALL-RAIL": 8, "A-GLAZ": 8, "A-DOOR": 8, "A-ENTRY": 242, "A-FURN": 9, "A-ANNO-TEXT": 7, "A-ANNO-EDGE": 8,
 };
+const layerColor = (L) => LAYERS[L] ?? (L.startsWith("A-AREA-") ? 8 : 7);
 // which recorded drawing is kept per layer: rooms and the entrance marker as outlines of their fills, the rest as strokes
 const keepFill = (layer) => layer.startsWith("A-AREA") || layer === "A-ENTRY";
 const dxfText = (t) => String(t).replace(/\s*·\s*/g, ", ").replace(/²/g, "2").replace(/×/g, "x").replace(/[^\x20-\x7e]/g, "?");
@@ -271,7 +274,7 @@ function dxf(s, syn, opt, info) {
   // written in metres: y turns up and the plan sits in the first quadrant
   const k = 1000 / M, hmm = (y1 - y0) * k;
   const rec = new Recorder();
-  paintFrame(rec, s, syn, lastFrame(syn), 1, 1, themePalette("white"), paintOpts(opt, { transform: { scale: k, ox: -x0 * k, oy: -y0 * k }, fontScale: 26 }));
+  paintFrame(rec, s, syn, lastFrame(syn), 1, 1, themePalette("white"), paintOpts(opt, { transform: { scale: k, ox: -x0 * k, oy: -y0 * k }, fontScale: 13 }));
   const X = (x) => x / 1000, Yd = (y) => (hmm - y) / 1000;
   const out = [];
   // integer group codes (flags, colours, justification) take whole numbers, the rest are reals
@@ -303,7 +306,7 @@ function dxf(s, syn, opt, info) {
   };
   const seen = new Set();
   for (const o of rec.ops) {
-    const L = LAYERS[o.layer] != null ? o.layer : "A-ANNO-TEXT";
+    const L = o.layer && o.layer !== "0" ? o.layer : "A-ANNO-TEXT";
     if (o.op === "text") {
       if (!o.text.trim()) continue;
       used.add(L);
@@ -328,10 +331,10 @@ function dxf(s, syn, opt, info) {
     flush();
   }
   // title under the plan
-  const tl = [ext[0], ext[1] - 0.9];
+  const tl = [ext[0], ext[1] - 0.6];
   used.add("A-ANNO-TEXT");
-  E(() => { g(0, "TEXT"); g(8, "A-ANNO-TEXT"); g(10, tl[0]); g(20, tl[1]); g(30, 0); g(40, 0.3); g(1, dxfText(`${info.title}, ${info.scores}, units: metres, ${today()}`)); });
-  grow(tl[0], tl[1] - 0.3);
+  E(() => { g(0, "TEXT"); g(8, "A-ANNO-TEXT"); g(10, tl[0]); g(20, tl[1]); g(30, 0); g(40, 0.15); g(1, dxfText(`${info.title}, ${info.scores}, units: metres, ${today()}`)); });
+  grow(tl[0], tl[1] - 0.15);
 
   g(0, "SECTION"); g(2, "HEADER");
   g(9, "$ACADVER"); g(1, "AC1009");
@@ -343,10 +346,10 @@ function dxf(s, syn, opt, info) {
   g(0, "TABLE"); g(2, "LTYPE"); g(70, 1);
   g(0, "LTYPE"); g(2, "CONTINUOUS"); g(70, 0); g(3, "Solid line"); g(72, 65); g(73, 0); g(40, 0);
   g(0, "ENDTAB");
-  const names = Object.keys(LAYERS).filter((L) => used.has(L));
+  const names = [...Object.keys(LAYERS).filter((L) => used.has(L)), ...[...used].filter((L) => !(L in LAYERS)).sort()];
   g(0, "TABLE"); g(2, "LAYER"); g(70, names.length + 1);
   g(0, "LAYER"); g(2, "0"); g(70, 0); g(62, 7); g(6, "CONTINUOUS");
-  for (const L of names) { g(0, "LAYER"); g(2, L); g(70, 0); g(62, LAYERS[L]); g(6, "CONTINUOUS"); }
+  for (const L of names) { g(0, "LAYER"); g(2, L); g(70, 0); g(62, layerColor(L)); g(6, "CONTINUOUS"); }
   g(0, "ENDTAB");
   g(0, "TABLE"); g(2, "STYLE"); g(70, 1);
   g(0, "STYLE"); g(2, "STANDARD"); g(70, 0); g(40, 0); g(41, 1); g(50, 0); g(71, 0); g(42, 0.25); g(3, "txt"); g(4, "");

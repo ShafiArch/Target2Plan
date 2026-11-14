@@ -94,7 +94,7 @@ export function openZoneDetail(t, store) {
   const ro = onResize(cv.parentElement, draw);
 }
 
-export function openSchematicDetail(s, store, opt) {
+export function openSchematicDetail(s, store, opt, { onEdit = null } = {}) {
   const c = s.computed || {}, tg = s.targets || {}, rr = s.reachable || {}, zp = s.edit && s.orig ? s.orig.computed : null;
   const cv = h("canvas");
   const sel = () => store.stage4.selected_idxs.includes(s.plan_index);
@@ -137,7 +137,8 @@ export function openSchematicDetail(s, store, opt) {
   const panel = h("div.detail",
     h("div.detail-head", h("span.h", "PLAN"), h("span.idx", `#${pad2(s.plan_index)}`), s.edit ? h("span.badge.edited", "✎ EDITED") : null, h("span.sub", `· ${(s.rooms || []).length} rooms · ${(s.edges || []).length} edges${syn.removed.length ? ` · removed ${syn.removed.join(", ")}` : ""}`), h("span.grow"),
       h("button.link-btn", { on: { click: replay } }, "↻ Replay synthesis"), selectButton(sel(), toggle), h("button.icon-btn", { title: "Close (Esc)", on: { click: () => close() } }, "✕")),
-    h("div.detail-body", h("div.detail-canvas", cv), h("div.detail-side", metrics, rooms)));
+    h("div.detail-body", h("div.detail-canvas", cv), h("div.detail-side", metrics, rooms,
+      onEdit ? h("div.detail-foot", h("button.btn-primary", { title: "Open this plan in the plan editor", on: { click: () => { close(); onEdit(s); } } }, "✎ Edit plan")) : null)));
   close = overlay(panel, () => { clearInterval(timer); ro.disconnect(); closeRoomPopup(); });
   const ro = onResize(cv.parentElement, draw);
 }
