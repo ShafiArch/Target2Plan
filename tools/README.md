@@ -20,7 +20,7 @@ For each model it writes `<name>.bin` (every tensor as float32 little-endian, co
 
 ## parity/
 
-Checks that the JavaScript engine reproduces the original prototype's Python code. The Python side needs PyTorch and numpy (scipy and networkx as for the prototype); PySide6 is not needed because `fakeqt/` stubs the few Qt classes the desktop state module imports. The JavaScript side needs Node 18 or newer.
+Checks that the JavaScript engine reproduces the original prototype's Python code. The Python side needs PyTorch and numpy (scipy and networkx as for the prototype); PySide6 is not needed because `fakeqt/` stubs the few Qt classes the prototype's state module imports. The JavaScript side needs Node 18 or newer.
 
 1. Networks against PyTorch (area model, zone encoder and decoder, connectivity model):
 
@@ -29,7 +29,7 @@ Checks that the JavaScript engine reproduces the original prototype's Python cod
    node tools/parity/nn_parity.mjs docs/models reference.json
    ```
 
-2. Stages 2 to 4 against the desktop pipeline (zone tables, reachable range, relocation, connectivity graphs, schematics, synthesis, Pareto front), with and without targets:
+2. Stages 2 to 4 against the prototype's pipeline (zone tables, reachable range, relocation, connectivity graphs, schematics, synthesis, Pareto front), with and without targets:
 
    ```
    python tools/parity/dump_pipeline.py . pipeline.json
@@ -37,14 +37,3 @@ Checks that the JavaScript engine reproduces the original prototype's Python cod
    ```
 
 Both print a table of checks and end with `all N checks passed`. Set `PYTHONDONTWRITEBYTECODE=1` when running the Python side if you do not want `__pycache__` folders in the working tree.
-
-## gallery/
-
-Renders the GIFs of the README gallery in `media/gallery/` with the web app's own engine and painters in headless Chromium: for each room program in `gallery.mjs`, `<program>_plan.gif` (the schematic synthesis) and `<program>_graph.gif` (the connectivity graph), plus `plans.gif` (all plans side by side at one scale) and `gallery.json`. The current gallery:
-
-```
-python3 tools/gallery/make_gallery.py --pick 1-bedroom=4:3:4 --pick 2-bedroom=32:3:1 \
-    --pick 3-bedroom=18:42:3 --pick 4-bedroom=23:17:0
-```
-
-A pick is `program=zone_seed:connectivity_seed:plan`. With `--grid` it writes `plans_grid.gif`, the mosaic at the end of the README. It needs numpy, Pillow and Playwright for Python with Chromium; `--fonts DIR` serves the Inter and JetBrains Mono woff2 files from a local folder when Google Fonts cannot be reached.

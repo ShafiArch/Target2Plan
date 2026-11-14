@@ -102,7 +102,6 @@ tools/
   export_weights.py  checkpoints to docs/models (no PyTorch needed)
   ptload.py          minimal reader for PyTorch .pt files
   parity/            checks the web engine against the prototype's Python code
-  gallery/           renders the README gallery into media/gallery/
 desktop/
   package.json       the Tauri command line tool
   src-tauri/         the desktop app: tauri.conf.json, src/main.rs,
