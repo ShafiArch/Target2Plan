@@ -1,7 +1,7 @@
-"""Run the desktop pipeline headlessly and dump every stage for the web parity check.
+"""Run the prototype's pipeline headlessly and dump every stage for the web parity check.
 
 usage: python tools/parity/dump_pipeline.py <repo_root> <out.json>
-Needs torch (the desktop models) but not PySide6 (a stub is on the path).
+Needs torch (the prototype's models) but not PySide6 (a stub is on the path).
 """
 import json
 import sys

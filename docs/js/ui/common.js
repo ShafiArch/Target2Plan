@@ -1,6 +1,9 @@
 // common.js: DOM helpers, theme palette for canvases, room colours, canvas
 // sizing, downloads, toasts and small widgets shared by the stages.
 
+/** The desktop app's native API (Tauri), or null in a browser. */
+export const DESKTOP = (typeof window !== "undefined" && window.__TAURI__) || null;
+
 export const ROOM_COLORS = {
   living: "#8d746f", kitchen: "#e0a03c", bedroom: "#c0413f", bathroom: "#e7a9b3", dining: "#9a6f52",
   study: "#5f7d9a", office: "#4f9d8e", laundry: "#7d9bb5", other: "#9aa0a6", balcony: "#9e9e9e",
@@ -12,7 +15,7 @@ export const DARK_ROOM_COLORS = { kitchen: "#ddb980" };
 export const roomColor = (t) => (document.documentElement.dataset.theme === "dark" && DARK_ROOM_COLORS[t]) || ROOM_COLORS[t] || ROOM_COLORS.other;
 /** Re-colour the DOM swatches (data-rt) after a theme change. */
 export function refreshSwatches() { document.querySelectorAll(".swatch[data-rt]").forEach((el) => { el.style.background = roomColor(el.dataset.rt); }); }
-export const THEMES = ["offwhite", "white", "dark"];
+export const THEMES = ["white", "offwhite", "dark"];
 export const THEME_LABELS = { offwhite: "Off-white", white: "White", dark: "Dark" };
 export const ZONE_LABELS = { 0: "NW", 1: "N", 2: "NE", 3: "W", 4: "C", 5: "E", 6: "SW", 7: "S", 8: "SE" };
 export const FONT = getComputedStyle(document.documentElement).getPropertyValue("--font") || "sans-serif";
@@ -83,11 +86,34 @@ export function text(ctx, str, x, y, { font = `11px ${FONT}`, color = "#000", al
   ctx.fillText(str, x, y);
 }
 
-export function downloadBlob(blob, name) {
+const SAVE_TYPES = { png: "PNG image", zip: "ZIP archive", gif: "GIF animation", mp4: "MP4 video", json: "Target2Plan session", csv: "CSV table" };
+
+/** Save a file: a browser downloads it, the desktop app asks where to save it.
+ *  Resolves to true once the file is saved (false if the dialog was cancelled). */
+export async function downloadBlob(blob, name) {
+  if (DESKTOP) {
+    const ext = name.split(".").pop().toLowerCase();
+    try {
+      const path = await DESKTOP.dialog.save({ defaultPath: name, filters: SAVE_TYPES[ext] ? [{ name: SAVE_TYPES[ext], extensions: [ext] }] : [] });
+      if (!path) return false;
+      await DESKTOP.fs.writeFile(path, new Uint8Array(await blob.arrayBuffer()));
+      return true;
+    } catch (err) {
+      toast(`Could not save ${name}: ${err}`);
+      return false;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = h("a", { href: url, download: name });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return true;
+}
+
+/** Ask to confirm: a native dialog in the desktop app, the browser's otherwise. */
+export async function confirmAsk(message) {
+  if (DESKTOP) return DESKTOP.dialog.ask(message, { title: "Target2Plan", kind: "warning" });
+  return window.confirm(message);
 }
 export const canvasBlob = (cv, type = "image/png", q) => new Promise((res) => cv.toBlob(res, type, q));
 
@@ -100,7 +126,7 @@ export function toast(msg, ms = 3200) {
   toastTimer = setTimeout(() => t.remove(), ms);
 }
 
-/** Collapsible section in the desktop's style. */
+/** Collapsible section in the prototype's style. */
 export function section(title, subtitle, expanded = true, ...body) {
   const caret = h("span.caret", expanded ? "▾" : "▸");
   const sec = h("div.section" + (expanded ? "" : ".collapsed"));

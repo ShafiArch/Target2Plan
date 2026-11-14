@@ -367,7 +367,7 @@ export function roomPalette(geom) {
       const mv = (ev) => {
         if (!ghost && Math.abs(ev.clientX - start[0]) + Math.abs(ev.clientY - start[1]) > 5) {
           ghost = chip.cloneNode(true);
-          Object.assign(ghost.style, { position: "fixed", pointerEvents: "none", zIndex: 40, opacity: 0.85 });
+          Object.assign(ghost.style, { position: "fixed", pointerEvents: "none", zIndex: 70, opacity: 0.85 });   // above the full screen drawing
           document.body.append(ghost);
         }
         if (ghost) { ghost.style.left = `${ev.clientX - 20}px`; ghost.style.top = `${ev.clientY - 10}px`; }

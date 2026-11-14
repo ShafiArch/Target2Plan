@@ -267,9 +267,8 @@ export function mountZones(body, { store, runtime, goto }) {
       const cv = renderCardPNG(t, showWeights);
       files.push({ name: `zone_plan_${pad2(t.table_index)}.png`, blob: await canvasBlob(cv) });
     }
-    if (files.length === 1) downloadBlob(files[0].blob, files[0].name);
-    else downloadBlob(await zipBlob(files), "zone_cards.png.zip");
-    toast(`Saved ${files.length} card${files.length > 1 ? "s" : ""}.`);
+    const saved = files.length === 1 ? await downloadBlob(files[0].blob, files[0].name) : await downloadBlob(await zipBlob(files), "zone_cards.png.zip");
+    if (saved) toast(`Saved ${files.length} card${files.length > 1 ? "s" : ""}.`);
   }
 
   let lastTables = null;

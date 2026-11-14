@@ -1,5 +1,7 @@
 # Layout Generator ARML — journal version
 
+> This is the original prototype of Target2Plan, kept as it was. The current app is the web app (`docs/`, https://shafiarch.github.io/Target2Plan/) and the desktop app built from it (`desktop/`); see the main README.
+
 A PySide6 desktop app that combines three trained models — area
 distribution, zone assignment (the journal paper's v13 cGAT-AR model,
 conditioned on the requested QVCI / AQI), and connectivity generation —

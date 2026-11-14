@@ -6,8 +6,8 @@ Target2Plan is licensed under CC BY-NC 4.0 (see [LICENSE](LICENSE)). The compone
 
 The furniture step of the schematic synthesis is a port of the furniture placement logic in **RGeoLib**, the research geometry library of the Hypergraph project by **Ramon Elias Weber** ([github.com/ramonweber/hypergraph](https://github.com/ramonweber/hypergraph), `ResearchGeometryLibrary/RGeoLib/BuildingSolver`). It appears twice in this repository:
 
-* desktop app: `models/schematic_layout.py` (Python port)
-* web app: `docs/js/engine/schematic.js` (`furnishRoom` and its helpers, ported from the Python)
+* original prototype: `models/schematic_layout.py` (Python port)
+* web and desktop apps: `docs/js/engine/schematic.js` (`furnishRoom` and its helpers, ported from the Python)
 
 Please cite the accompanying paper as well:
 
@@ -47,6 +47,10 @@ SOFTWARE.
 
 [github.com/Vanilagy/mp4-muxer](https://github.com/Vanilagy/mp4-muxer). MIT License, Copyright (c) 2023 Vanilagy. Full text: `docs/js/vendor/LICENSE-mp4-muxer.txt`.
 
-## Fonts
+## Fonts: Inter and JetBrains Mono
 
-Inter and JetBrains Mono (SIL Open Font License 1.1) are loaded from Google Fonts by the web app and are not redistributed in this repository.
+The web and desktop apps include the Latin and Latin Extended subsets of **Inter** (Copyright 2016 The Inter Project Authors, [github.com/rsms/inter](https://github.com/rsms/inter)) and **JetBrains Mono** (Copyright 2020 The JetBrains Mono Project Authors, [github.com/JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono)) as WOFF2 files in `docs/fonts/`, taken from the Fontsource packages. Both are licensed under the SIL Open Font License 1.1; full texts: `docs/fonts/OFL-Inter.txt` and `docs/fonts/OFL-JetBrainsMono.txt`.
+
+## Tauri: desktop app
+
+The desktop app in `desktop/` is built with **Tauri** and its official dialog, file system and opener plugins ([tauri.app](https://tauri.app), [github.com/tauri-apps/tauri](https://github.com/tauri-apps/tauri)), licensed under the MIT License or the Apache License 2.0, at your option. The compiled app also contains the Rust crates Tauri depends on, each under its own open-source license (mostly MIT or Apache 2.0).

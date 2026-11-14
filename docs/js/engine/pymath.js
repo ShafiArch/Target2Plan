@@ -1,4 +1,4 @@
-// pymath.js: two Python math behaviours the desktop results depend on.
+// pymath.js: two Python math behaviours the prototype's results depend on.
 //
 // pyRound(x, d): Python's round(), i.e. correctly rounded on the exact binary
 //   value with ties to even (JavaScript's toFixed rounds ties up).

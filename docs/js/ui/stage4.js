@@ -1,7 +1,7 @@
 // stage4.js: Schematic Design. Plans synthesised from areas, zones and
 // connectivity (rooms slide into contact, walls, doors, windows, furniture),
 // replayed as an animation; the AQI x QVCI Pareto front; exports.
-import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput } from "./common.js";
+import { h, clear, palette, fitCanvas, onResize, emptyState, toast, pad2, offscreen, canvasBlob, downloadBlob, FONT, MONO, numberInput, DESKTOP } from "./common.js";
 import { makeSchematics, paretoFrontIndices } from "../engine/schematic.js";
 import { getSynthesis, paintFrame, commonFit, roomAt, FURNITURE_STYLES, DEFAULT_FURNITURE } from "./schematicPaint.js";
 import { zipBlob, encodeGIF, encodeMP4 } from "./exporters.js";
@@ -12,7 +12,8 @@ const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return 
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* ignore */ } };
 
 export function mountSchematic(body, { store, goto }) {
-  const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furn: LS("schFurniture", DEFAULT_FURNITURE), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
+  // Show edges and the Pareto front start off (stored under new names, so earlier choices give way to these defaults)
+  const opt = { edges: LS("schShowEdges", false), walls: LS("schWalls", true), furn: LS("schFurniture", DEFAULT_FURNITURE), planOnly: LS("schHidePareto", true), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
   if (!FURNITURE_STYLES.some(([v]) => v === opt.furn)) opt.furn = DEFAULT_FURNITURE;
   let cards = [], lastSch = null, hoverIdx = null, fitDims = null;
   const grid = h("div.grid4");
@@ -33,7 +34,7 @@ export function mountSchematic(body, { store, goto }) {
     return b;
   };
   const bRegen = h("button.link-btn", { on: { click: () => regenerate() } }, "Regenerate");
-  const cEdges = chip("● Show edges", "edges", "Dashed connectivity edges behind the plan", "schEdges");
+  const cEdges = chip("● Show edges", "edges", "Dashed connectivity edges behind the plan", "schShowEdges");
   const cWalls = chip("▭ Walls · doors · windows", "walls", "Draw double-line walls with doors and windows", "schWalls");
   // furniture style dropdown (placement after RGeoLib by Ramon Elias Weber, MIT License)
   const furnSel = h("select", { "aria-label": "Furniture style" }, ...FURNITURE_STYLES.map(([v, label]) => h("option", { value: v }, label)));
@@ -41,7 +42,7 @@ export function mountSchematic(body, { store, goto }) {
   const cFurn = h("label.chip.chip-select" + (opt.furn !== "none" ? ".active" : ""), { title: "How furniture is drawn. Furniture placement after RGeoLib by Ramon Elias Weber (MIT License)." }, "▦ Furniture", furnSel);
   furnSel.addEventListener("change", () => { opt.furn = furnSel.value; SS("schFurniture", opt.furn); cFurn.classList.toggle("active", opt.furn !== "none"); applyView(); });
   // Pareto front panel toggle (on = accent red); off leaves only the plans
-  const cPlan = h("button.chip" + (!opt.planOnly ? ".active" : ""), { title: "Show or hide the AQI × QVCI Pareto front below the plans", on: { click: () => { opt.planOnly = !opt.planOnly; SS("schPlanOnly", opt.planOnly); cPlan.classList.toggle("active", !opt.planOnly); applyView(); } } }, "◆ Pareto front");
+  const cPlan = h("button.chip" + (!opt.planOnly ? ".active" : ""), { title: "Show or hide the AQI × QVCI Pareto front below the plans", on: { click: () => { opt.planOnly = !opt.planOnly; SS("schHidePareto", opt.planOnly); cPlan.classList.toggle("active", !opt.planOnly); applyView(); } } }, "◆ Pareto front");
   const animIn = numberInput(opt.anim, { min: 0, max: 400, step: 5, suffix: "ms", width: 84, onChange: (v) => { opt.anim = v; SS("schAnim", v); replayAll(); } });
   animIn.title = "Milliseconds per synthesis frame (0 = show the finished plan)";
   const bReplay = h("button.link-btn", { title: "Replay the schematic synthesis on every card", on: { click: () => replayAll() } }, "↻ Replay");
@@ -79,7 +80,7 @@ export function mountSchematic(body, { store, goto }) {
       shown = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[Math.min(frameIdx, syn.frames.length - 1)];
       T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showCaption: frameIdx >= 0, showCompass: !opt.planOnly, fitDims });
     };
-    // a click on a room opens its card (as in the desktop app); elsewhere it selects the plan
+    // a click on a room opens its card (as in the prototype); elsewhere it selects the plan
     cv.addEventListener("click", (e) => {
       const b = cv.getBoundingClientRect(), room = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top);
       if (!room) return;
@@ -294,8 +295,8 @@ export function mountSchematic(body, { store, goto }) {
     if (!sel.length) return toast("Select at least one schematic card before exporting.");
     const files = [];
     for (const s of sel) files.push({ name: `schematic_${pad2(s.plan_index)}.png`, blob: await canvasBlob(renderPlanPNG(s)) });
-    if (files.length === 1) downloadBlob(files[0].blob, files[0].name); else downloadBlob(await zipBlob(files), "schematics.png.zip");
-    toast(`Saved ${files.length} plan${files.length > 1 ? "s" : ""}.`);
+    const saved = files.length === 1 ? await downloadBlob(files[0].blob, files[0].name) : await downloadBlob(await zipBlob(files), "schematics.png.zip");
+    if (saved) toast(`Saved ${files.length} plan${files.length > 1 ? "s" : ""}.`);
   }
   async function saveBatch() {
     const st = store.stage4;
@@ -341,8 +342,8 @@ export function mountSchematic(body, { store, goto }) {
         } catch { mp4ok = false; }
       }
     }
-    if (files.length === 1) downloadBlob(files[0].blob, files[0].name); else downloadBlob(await zipBlob(files), "schematic_synthesis.zip");
-    toast(mp4ok ? `Saved ${list.length} animation${list.length > 1 ? "s" : ""} as GIF and MP4.` : `Saved ${list.length} GIF animation${list.length > 1 ? "s" : ""}; this browser cannot encode MP4.`);
+    const saved = files.length === 1 ? await downloadBlob(files[0].blob, files[0].name) : await downloadBlob(await zipBlob(files), "schematic_synthesis.zip");
+    if (saved) toast(mp4ok ? `Saved ${list.length} animation${list.length > 1 ? "s" : ""} as GIF and MP4.` : `Saved ${list.length} GIF animation${list.length > 1 ? "s" : ""}; ${DESKTOP ? "MP4 encoding is not available on this computer" : "this browser cannot encode MP4"}.`);
   }
 
   store.on("stage4", () => { if (store.stage4.schematics !== lastSch) { lastSch = store.stage4.schematics; render(); } else refreshSelection(); });
