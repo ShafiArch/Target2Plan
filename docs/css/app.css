@@ -227,6 +227,9 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .zoom-ctl button:hover { color: var(--accent); background: var(--surface); }
 .zoom-ctl .zoom-pct { font-family: var(--mono); font-size: 10.5px; min-width: 48px; color: var(--ink); }
 .zoom-ctl .fit { font-size: 11px; }
+.edit-ctl button:disabled { opacity: 0.35; cursor: default; background: transparent; color: var(--ink2); }
+.edit-ctl .snap { font-size: 11px; }
+.edit-ctl .snap.on { color: var(--accent); font-weight: 600; }
 .palette { display: flex; align-items: center; gap: 6px; flex: 1; flex-wrap: wrap; }
 .room-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 10px; border: 1px solid rgb(var(--ink-rgb) / 0.14); background: rgb(var(--ink-rgb) / 0.05); font-size: 11px; cursor: grab; user-select: none; touch-action: none; }
 .room-chip:active { cursor: grabbing; }

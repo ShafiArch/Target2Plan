@@ -4,7 +4,7 @@
 //   room counts and the plan area (room counts, plan geometry and aspect
 //   ratios sit in a strip above the cards).
 import { h, clear, section, roomSliderRow, numberInput, palette, roomColor, fitCanvas, onResize, emptyState, toast, FONT, pad2, hexA, DESKTOP } from "./common.js";
-import { GeometryCanvas, roomPalette, SQFT_PER_M2 } from "./geometry.js";
+import { GeometryCanvas, roomPalette, SQFT_PER_M2, MOD_KEY } from "./geometry.js";
 import { packCirclesNatural } from "../engine/area.js";
 import { unitScaleToM } from "../engine/zones.js";
 import { pyRound } from "../engine/pymath.js";
@@ -80,6 +80,7 @@ export function mountArea(body, { store, runtime, goto }) {
   const geomWrap = h("div.geom-wrap");
   const drawInfo = h("div.draw-info", "No rooms yet.");
   const geom = new GeometryCanvas(geomWrap, () => { store.drawnRooms = geom.rooms.map((r) => ({ ...r })); refreshDrawInfo(); });
+  geomWrap.geom = geom;   // reachable from the page (tests, console)
   const um = h("button", { on: { click: () => setDrawUnits("m") } }, "m²"), uf = h("button", { on: { click: () => setDrawUnits("ft") } }, "ft²");
   // zoom: buttons here, wheel or pinch on the canvas, keys + / - / 0 when it has focus
   const zoomPct = h("button.zoom-pct", { title: "Back to 100 %", on: { click: () => geom.setScale(GeometryCanvas.BASE_PX_PER_M) } }, "100%");
@@ -90,8 +91,14 @@ export function mountArea(body, { store, runtime, goto }) {
     h("button.fit", { title: "Fit the rooms in view (0)", on: { click: () => geom.fit() } }, "Fit"),
     h("button.zoom-fs", { title: "Full screen (Esc to leave)", "aria-label": "Full screen", html: FS_ENTER, on: { click: () => setFull(true) } }));
   geom.onZoom = () => { zoomPct.textContent = `${geom.zoomPercent()}%`; };
+  // undo / redo and snapping (the keyboard shortcuts work on the canvas too)
+  const bUndo = h("button", { title: `Undo (${MOD_KEY}+Z)`, "aria-label": "Undo", disabled: true, on: { click: () => geom.undo() } }, "↶");
+  const bRedo = h("button", { title: `Redo (${MOD_KEY}+Shift+Z)`, "aria-label": "Redo", disabled: true, on: { click: () => geom.redo() } }, "↷");
+  const bSnap = h("button.snap" + (geom.snapOn ? ".on" : ""), { title: "Snap edges and centres to the other rooms (hold Alt to place freely)", "aria-pressed": String(geom.snapOn), on: { click: () => { geom.setSnap(!geom.snapOn); bSnap.classList.toggle("on", geom.snapOn); bSnap.setAttribute("aria-pressed", String(geom.snapOn)); } } }, "Snap");
+  const editCtl = h("div.zoom-ctl.edit-ctl", { role: "group", "aria-label": "Edit" }, bUndo, bRedo, bSnap);
+  geom.onHistory = () => { bUndo.disabled = !geom.canUndo(); bRedo.disabled = !geom.canRedo(); };
   // units and zoom sit in the draw panel; on phones they move up next to the mode pill
-  const drawCtl = h("div.draw-ctl", h("div.mode-pill", um, uf), zoomCtl);
+  const drawCtl = h("div.draw-ctl", editCtl, h("div.mode-pill", um, uf), zoomCtl);
   const bMin = h("button.btn-ghost.fs-min", { title: "Back to the normal view (Esc)", html: `${FS_EXIT}<span class="long">Exit full screen</span><span class="short">Exit</span>`, on: { click: () => setFull(false) } });
   const drawTop = h("div.draw-top", roomPalette(geom), drawCtl, bMin);
   const drawPanel = h("div.draw-panel", drawTop, geomWrap, drawInfo);
@@ -338,6 +345,7 @@ export function mountArea(body, { store, runtime, goto }) {
   store.on("reset", () => {
     syncInputs();
     if (store.drawnRooms && store.drawnRooms.length) geom.setRooms(store.drawnRooms); else geom.loadSample();
+    geom.resetHistory();
     refreshStage1();
   });
   store.on("theme", () => { geom.draw(); cards.forEach((c) => c.redraw()); comp?.redraw(); });
@@ -345,6 +353,7 @@ export function mountArea(body, { store, runtime, goto }) {
   setDrawUnits(pg().units === "ft" ? "ft" : "m");
   syncInputs();
   geom.loadSample();
+  geom.resetHistory();
   applyMode();
   refreshStage1();
   return {
