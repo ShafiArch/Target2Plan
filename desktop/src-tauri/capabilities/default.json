@@ -1,10 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the Target2Plan window may do: show save and confirm dialogs, write the file the user chose in a save dialog, and open links in the system browser.",
+  "description": "What the Target2Plan window may do: show save and confirm dialogs, write the file the user chose in a save dialog, open links in the system browser, go full screen for drawing and follow the app's theme.",
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-theme",
     "dialog:default",
     "dialog:allow-ask",
     "fs:allow-write-file",

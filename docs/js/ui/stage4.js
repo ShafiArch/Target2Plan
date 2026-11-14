@@ -12,7 +12,8 @@ const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return 
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* ignore */ } };
 
 export function mountSchematic(body, { store, goto }) {
-  const opt = { edges: LS("schEdges", true), walls: LS("schWalls", true), furn: LS("schFurniture", DEFAULT_FURNITURE), planOnly: LS("schPlanOnly", false), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
+  // Show edges and the Pareto front start off (stored under new names, so earlier choices give way to these defaults)
+  const opt = { edges: LS("schShowEdges", false), walls: LS("schWalls", true), furn: LS("schFurniture", DEFAULT_FURNITURE), planOnly: LS("schHidePareto", true), anim: LS("schAnim", 25), fixed: LS("paretoFixed", false) };
   if (!FURNITURE_STYLES.some(([v]) => v === opt.furn)) opt.furn = DEFAULT_FURNITURE;
   let cards = [], lastSch = null, hoverIdx = null, fitDims = null;
   const grid = h("div.grid4");
@@ -33,7 +34,7 @@ export function mountSchematic(body, { store, goto }) {
     return b;
   };
   const bRegen = h("button.link-btn", { on: { click: () => regenerate() } }, "Regenerate");
-  const cEdges = chip("● Show edges", "edges", "Dashed connectivity edges behind the plan", "schEdges");
+  const cEdges = chip("● Show edges", "edges", "Dashed connectivity edges behind the plan", "schShowEdges");
   const cWalls = chip("▭ Walls · doors · windows", "walls", "Draw double-line walls with doors and windows", "schWalls");
   // furniture style dropdown (placement after RGeoLib by Ramon Elias Weber, MIT License)
   const furnSel = h("select", { "aria-label": "Furniture style" }, ...FURNITURE_STYLES.map(([v, label]) => h("option", { value: v }, label)));
@@ -41,7 +42,7 @@ export function mountSchematic(body, { store, goto }) {
   const cFurn = h("label.chip.chip-select" + (opt.furn !== "none" ? ".active" : ""), { title: "How furniture is drawn. Furniture placement after RGeoLib by Ramon Elias Weber (MIT License)." }, "▦ Furniture", furnSel);
   furnSel.addEventListener("change", () => { opt.furn = furnSel.value; SS("schFurniture", opt.furn); cFurn.classList.toggle("active", opt.furn !== "none"); applyView(); });
   // Pareto front panel toggle (on = accent red); off leaves only the plans
-  const cPlan = h("button.chip" + (!opt.planOnly ? ".active" : ""), { title: "Show or hide the AQI × QVCI Pareto front below the plans", on: { click: () => { opt.planOnly = !opt.planOnly; SS("schPlanOnly", opt.planOnly); cPlan.classList.toggle("active", !opt.planOnly); applyView(); } } }, "◆ Pareto front");
+  const cPlan = h("button.chip" + (!opt.planOnly ? ".active" : ""), { title: "Show or hide the AQI × QVCI Pareto front below the plans", on: { click: () => { opt.planOnly = !opt.planOnly; SS("schHidePareto", opt.planOnly); cPlan.classList.toggle("active", !opt.planOnly); applyView(); } } }, "◆ Pareto front");
   const animIn = numberInput(opt.anim, { min: 0, max: 400, step: 5, suffix: "ms", width: 84, onChange: (v) => { opt.anim = v; SS("schAnim", v); replayAll(); } });
   animIn.title = "Milliseconds per synthesis frame (0 = show the finished plan)";
   const bReplay = h("button.link-btn", { title: "Replay the schematic synthesis on every card", on: { click: () => replayAll() } }, "↻ Replay");

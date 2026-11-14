@@ -59,14 +59,14 @@ The web app runs entirely in the browser. The checkpoints are exported to static
 It follows the workflow of the original prototype, one card per stage:
 
 1. **Inputs**: targets with the reachable range, site conditions per facade, planned WWR, zone capacity, generation parameters.
-2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag), or, optionally, sample area variations from the area distribution model (Farthest point or KMeans selection).
+2. **Area Distribution**: draw the room program on a grid (zoom with the wheel or the zoom buttons, pan with middle-drag or Space + drag, and draw full screen with the corner button; Esc leaves it), or, optionally, sample area variations from the area distribution model (Farthest point or KMeans selection).
 3. **Zone Assignments**: zone model decodes (one greedy plus sampled), sorted by distance to the targets, with the design explorer (parallel coordinates with brushing) and a detail view per plan.
 4. **Connectivity**: access graphs from the connectivity model, with secondary rooms relocated next to the room they connect to; animated.
-5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front.
+5. **Schematic Design**: packed plans with walls, doors, windows and furniture (line drawing or fill, at several strengths), the replayable synthesis, a details card for any room you click, and the Pareto front. The connectivity edges and the Pareto front start hidden; their buttons show them.
 
 On a phone the stages become one screen each, with tabs under the header to move between them; the drawing canvas zooms with a pinch.
 
-Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), and the whole session as a `.json` file that can be loaded again. Three themes: off-white, white and dark.
+Exports: zone cards and plans as PNG (zipped when several), contact sheets, Pareto image and CSV, synthesis animations as GIF and MP4 (MP4 in browsers that can encode H.264 through WebCodecs, such as current Chrome and Edge; elsewhere the GIF alone), and the whole session as a `.json` file that can be loaded again. Three themes: white, off-white and dark. The app always opens in white, whatever the computer's light or dark setting.
 
 ### Run it locally
 
@@ -86,7 +86,7 @@ docs/
   index.html, css/app.css, css/fonts.css
   manifest.webmanifest, sw.js   installing from the browser, offline use
   fonts/             Inter and JetBrains Mono (SIL Open Font License)
-  icons/             app icons
+  icons/             the logo (logo.svg) and the app icons
   js/app.js          header, stage strip, sessions, theme
   js/store.js        session state and change events
   js/runtime.js      starts the worker (falls back to the main thread)

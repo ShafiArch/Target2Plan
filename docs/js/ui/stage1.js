@@ -3,7 +3,7 @@
 //   Generate area distributions (optional): the area model samples variations from the
 //   room counts and the plan area (room counts, plan geometry and aspect
 //   ratios sit in a strip above the cards).
-import { h, clear, section, roomSliderRow, numberInput, palette, roomColor, fitCanvas, onResize, emptyState, toast, FONT, pad2, hexA } from "./common.js";
+import { h, clear, section, roomSliderRow, numberInput, palette, roomColor, fitCanvas, onResize, emptyState, toast, FONT, pad2, hexA, DESKTOP } from "./common.js";
 import { GeometryCanvas, roomPalette, SQFT_PER_M2 } from "./geometry.js";
 import { packCirclesNatural } from "../engine/area.js";
 import { unitScaleToM } from "../engine/zones.js";
@@ -11,6 +11,10 @@ import { pyRound } from "../engine/pymath.js";
 import { ZONED_TYPES, ROOM_TYPES_UI } from "../store.js";
 
 const SHORT = { living: "liv", bedroom: "bed", kitchen: "kit", bathroom: "bat", dining: "din", balcony: "bal", storage: "sto", study: "stu" };
+// full screen icons: four corners pointing out (enter) and in (exit)
+const FS_ICON = (d) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+const FS_ENTER = FS_ICON("M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4");
+const FS_EXIT = FS_ICON("M6 2v4H2M10 2v4h4M14 10h-4v4M2 10h4v4");
 const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 
@@ -84,23 +88,46 @@ export function mountArea(body, { store, runtime, goto }) {
     zoomPct,
     h("button", { title: "Zoom in (+)", "aria-label": "Zoom in", on: { click: () => geom.zoomBy(1.25) } }, "+"),
     h("button.fit", { title: "Fit the rooms in view (0)", on: { click: () => geom.fit() } }, "Fit"),
-    h("button.zoom-fs", { title: "Draw full screen", "aria-label": "Draw full screen", on: { click: () => setFull(true) } }, "⛶"));
+    h("button.zoom-fs", { title: "Full screen (Esc to leave)", "aria-label": "Full screen", html: FS_ENTER, on: { click: () => setFull(true) } }));
   geom.onZoom = () => { zoomPct.textContent = `${geom.zoomPercent()}%`; };
   // units and zoom sit in the draw panel; on phones they move up next to the mode pill
   const drawCtl = h("div.draw-ctl", h("div.mode-pill", um, uf), zoomCtl);
-  const bMin = h("button.btn-ghost.fs-min", { title: "Back to the normal view", on: { click: () => setFull(false) } }, "⤡ Minimize");
+  const bMin = h("button.btn-ghost.fs-min", { title: "Back to the normal view (Esc)", html: `${FS_EXIT}<span class="long">Exit full screen</span><span class="short">Exit</span>`, on: { click: () => setFull(false) } });
   const drawTop = h("div.draw-top", roomPalette(geom), drawCtl, bMin);
   const drawPanel = h("div.draw-panel", drawTop, geomWrap, drawInfo);
   const phone = window.matchMedia ? window.matchMedia("(max-width: 760px)") : null;
   function placeDrawCtl() { if (phone && phone.matches) modeBar.append(drawCtl); else drawTop.insertBefore(drawCtl, bMin); }
   placeDrawCtl();
-  phone?.addEventListener("change", () => { placeDrawCtl(); if (!phone.matches) setFull(false); });
-  // full-screen drawing (phone): the canvas fills the screen with only the room chips and Minimize
+  phone?.addEventListener("change", placeDrawCtl);
+  // Full screen drawing: the canvas fills the window with the room chips, zoom and
+  // Exit. On a computer the screen goes full screen as well (the browser's
+  // Fullscreen API, or the desktop app's window); on a phone the canvas fills the page.
+  let screenFull = false;   // true while the drawing holds the browser or the window in full screen
+  const escKey = (e) => { if (e.key === "Escape") { e.preventDefault(); setFull(false); } };
   function setFull(on) {
     if (drawPanel.classList.contains("fullscreen") === on) return;
     drawPanel.classList.toggle("fullscreen", on);
+    if (on) { window.addEventListener("keydown", escKey); if (!(phone && phone.matches)) enterScreen(); }
+    else { window.removeEventListener("keydown", escKey); leaveScreen(); }
     requestAnimationFrame(() => geom.centre());
   }
+  function enterScreen() {
+    if (DESKTOP) { screenFull = true; DESKTOP.window.getCurrentWindow().setFullscreen(true).catch(() => { screenFull = false; }); return; }
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;   // the canvas still fills the page
+    try { screenFull = true; Promise.resolve(req.call(el)).catch(() => { screenFull = false; }); } catch { screenFull = false; }
+  }
+  function leaveScreen() {
+    if (!screenFull) return;
+    screenFull = false;
+    if (DESKTOP) { DESKTOP.window.getCurrentWindow().setFullscreen(false).catch(() => {}); return; }
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if ((document.fullscreenElement || document.webkitFullscreenElement) && exit) Promise.resolve(exit.call(document)).catch(() => {});
+  }
+  // leaving the browser's full screen some other way (Esc, F11, the browser's own button) ends the drawing view too
+  const fsChange = () => { if (screenFull && !(document.fullscreenElement || document.webkitFullscreenElement)) { screenFull = false; setFull(false); } };
+  document.addEventListener("fullscreenchange", fsChange);
+  document.addEventListener("webkitfullscreenchange", fsChange);
   function setDrawUnits(u) { geom.setUnits(u); um.classList.toggle("active", u === "m"); uf.classList.toggle("active", u === "ft"); refreshDrawInfo(); }
 
   function refreshDrawInfo() {

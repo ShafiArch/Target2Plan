@@ -33,7 +33,7 @@ class Store {
     this.inputs = defaultInputs();
     Object.assign(this, emptyStages());
     this.drawnRooms = null;                 // the Stage 1 drawing (metres), kept for sessions
-    this.ui = { theme: "offwhite" };
+    this.ui = { theme: "white" };
     this.epoch = 0;
   }
 

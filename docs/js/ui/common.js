@@ -15,7 +15,7 @@ export const DARK_ROOM_COLORS = { kitchen: "#ddb980" };
 export const roomColor = (t) => (document.documentElement.dataset.theme === "dark" && DARK_ROOM_COLORS[t]) || ROOM_COLORS[t] || ROOM_COLORS.other;
 /** Re-colour the DOM swatches (data-rt) after a theme change. */
 export function refreshSwatches() { document.querySelectorAll(".swatch[data-rt]").forEach((el) => { el.style.background = roomColor(el.dataset.rt); }); }
-export const THEMES = ["offwhite", "white", "dark"];
+export const THEMES = ["white", "offwhite", "dark"];
 export const THEME_LABELS = { offwhite: "Off-white", white: "White", dark: "Dark" };
 export const ZONE_LABELS = { 0: "NW", 1: "N", 2: "NE", 3: "W", 4: "C", 5: "E", 6: "SW", 7: "S", 8: "SE" };
 export const FONT = getComputedStyle(document.documentElement).getPropertyValue("--font") || "sans-serif";

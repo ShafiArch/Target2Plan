@@ -25,6 +25,7 @@ const APP = [
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/icon-maskable-512.png",
+  "icons/logo.svg",
   "index.html",
   "js/app.js",
   "js/engine/area.js",

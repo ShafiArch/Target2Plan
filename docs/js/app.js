@@ -2,7 +2,7 @@
 // session load / export, and the hand-offs between stages.
 import { store } from "./store.js";
 import { runtime } from "./runtime.js";
-import { h, THEMES, THEME_LABELS, downloadBlob, confirmAsk, toast, refreshSwatches, DESKTOP } from "./ui/common.js";
+import { h, THEMES, THEME_LABELS, downloadBlob, confirmAsk, toast, refreshSwatches, palette, DESKTOP } from "./ui/common.js";
 import { mountInputs } from "./ui/stage0.js";
 import { mountArea } from "./ui/stage1.js";
 import { mountZones } from "./ui/stage2.js";
@@ -21,19 +21,26 @@ const STAGES = [
 const phone = window.matchMedia ? window.matchMedia("(max-width: 760px)") : { matches: false };
 
 // ── theme ───────────────────────────────────────────────────────────
-let theme = (() => { try { return localStorage.getItem("t2p.theme") || "offwhite"; } catch { return "offwhite"; } })();
-if (!THEMES.includes(theme)) theme = "offwhite";
+// Target2Plan always opens in White: it does not follow the computer's light or
+// dark setting, and a theme picked with the button lasts until the app closes.
+let theme = "white";
 document.documentElement.dataset.theme = theme;
 store.ui.theme = theme;
+const themeColor = document.querySelector('meta[name="theme-color"]');
 const themeBtn = h("button.pill.theme", { title: "Switch theme", on: { click: () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]) } }, THEME_LABELS[theme]);
 function setTheme(t) {
   theme = t; store.ui.theme = t;
   document.documentElement.dataset.theme = t;
   themeBtn.textContent = THEME_LABELS[t];
-  try { localStorage.setItem("t2p.theme", t); } catch { /* storage unavailable */ }
+  // the installed app's title bar and the desktop window follow the theme
+  if (themeColor) themeColor.content = palette().bg;
+  if (DESKTOP) DESKTOP.window.getCurrentWindow().setTheme(t === "dark" ? "dark" : "light").catch(() => {});
   refreshSwatches();
   store.emit("theme");
 }
+
+// the Target2Plan logo: a bedroom and a living room, turned (docs/icons/logo.svg)
+const LOGO = '<svg viewBox="0 0 75.4 100" aria-hidden="true"><path d="M8.83 15.44 L36.27 0 L75.4 69.56 L47.96 84.99 Z" fill="#a8958f"/><path d="M0 62.18 L25.87 47.63 L47.14 85.45 L21.28 100 Z" fill="#d0706e"/></svg>';
 
 // ── installing and the desktop app ──────────────────────────────────
 // In a browser the site installs as an app (manifest + service worker; the
@@ -59,7 +66,7 @@ if (DESKTOP) {
 const status = h("span.model-status", "Loading models…");
 const fileIn = h("input", { type: "file", accept: ".json,application/json", style: { display: "none" } });
 const header = h("header.app-header",
-  h("div.brand", h("span.diamond", "◆"), "Target2Plan"),
+  h("div.brand", h("span.logo", { html: LOGO }), "Target2Plan"),
   h("div.header-spacer"), status,
   h("button.pill", { title: "Open a saved session (.json)", on: { click: () => fileIn.click() } }, "Load session"),
   h("button.pill", { title: "Save the whole session as a .json file", on: { click: exportSession } }, "Export session"),
@@ -158,7 +165,6 @@ fileIn.addEventListener("change", async () => {
   try {
     const s = JSON.parse(await f.text());
     const stage4 = store.fromSession(s);
-    if (s.ui && THEMES.includes(s.ui.theme)) setTheme(s.ui.theme);
     if (stage4) schematic.rebuild(stage4);
     toast(`Loaded ${f.name}`);
   } catch (err) {
