@@ -94,9 +94,19 @@ export function mountArea(body, { store, runtime, goto }) {
   // undo / redo and snapping (the keyboard shortcuts work on the canvas too)
   const bUndo = h("button", { title: `Undo (${MOD_KEY}+Z)`, "aria-label": "Undo", disabled: true, on: { click: () => geom.undo() } }, "↶");
   const bRedo = h("button", { title: `Redo (${MOD_KEY}+Shift+Z)`, "aria-label": "Redo", disabled: true, on: { click: () => geom.redo() } }, "↷");
-  const bSnap = h("button.snap" + (geom.snapOn ? ".on" : ""), { title: "Snap edges and centres to the other rooms (hold Alt to place freely)", "aria-pressed": String(geom.snapOn), on: { click: () => { geom.setSnap(!geom.snapOn); bSnap.classList.toggle("on", geom.snapOn); bSnap.setAttribute("aria-pressed", String(geom.snapOn)); } } }, "Snap");
-  const bGrid = h("button.snap" + (geom.gridOn ? ".on" : ""), { title: "Show or hide the dotted grid", "aria-pressed": String(geom.gridOn), on: { click: () => { geom.setGrid(!geom.gridOn); bGrid.classList.toggle("on", geom.gridOn); bGrid.setAttribute("aria-pressed", String(geom.gridOn)); } } }, "Grid");
-  const editCtl = h("div.zoom-ctl.edit-ctl", { role: "group", "aria-label": "Edit" }, bUndo, bRedo, bSnap, bGrid);
+  // on / off buttons, remembered: snapping, the dot grid, room colours, room text
+  const toggle = (label, title, isOn, set) => {
+    const b = h("button.snap", { title }, label);
+    const sync = () => { b.classList.toggle("on", isOn()); b.setAttribute("aria-pressed", String(isOn())); };
+    b.addEventListener("click", () => { set(!isOn()); sync(); });
+    sync();
+    return b;
+  };
+  const bSnap = toggle("Snap", "Snap edges and centres to the other rooms (hold Alt to place freely)", () => geom.snapOn, (v) => geom.setSnap(v));
+  const bGrid = toggle("Grid", "Show or hide the dotted grid", () => geom.gridOn, (v) => geom.setGrid(v));
+  const bFill = toggle("Fill", "Fill the rooms with their colours, or show their coloured outlines alone", () => geom.fillOn, (v) => geom.setFill(v));
+  const bText = toggle("Text", "Show or hide the room names and sizes", () => geom.textOn, (v) => geom.setText(v));
+  const editCtl = h("div.zoom-ctl.edit-ctl", { role: "group", "aria-label": "Edit" }, bUndo, bRedo, bSnap, bGrid, bFill, bText);
   geom.onHistory = () => { bUndo.disabled = !geom.canUndo(); bRedo.disabled = !geom.canRedo(); };
   // units and zoom sit in the draw panel; on phones they move up next to the mode pill
   const drawCtl = h("div.draw-ctl", editCtl, h("div.mode-pill", um, uf), zoomCtl);

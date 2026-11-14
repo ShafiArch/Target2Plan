@@ -93,9 +93,11 @@ function cornerFree(wl, syn, end) {
  *  commonFit) gives several cards the same scale; without it the finished plan
  *  fills the view. */
 export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
-  const { showEdges = true, showLabels = false, showWalls = true, showCaption = false, fontScale = 1, fitDims = null } = o;
+  const { showEdges = true, showLabels = false, showWalls = true, showCaption = false, fontScale = 1, fitDims = null, fill = true } = o;
   // o.transform {scale, ox, oy} places the plan (the plan editor's zoom and pan; exports to scale);
-  // o.roomColor overrides the theme's room colours (exports)
+  // o.roomColor overrides the theme's room colours (exports); fill false makes a line
+  // drawing (the editor's Fill button): no room colours, balconies outlined in light
+  // grey, furniture and the entrance marker in ink
   const showCompass = o.transform ? false : o.showCompass ?? true, roomColor = o.roomColor || themeRoomColor;
   // furniture style: line | line20 | line50 | fill20 | fill50 | none (see FURNITURE_STYLES)
   const furniture = o.furniture ?? (o.showFurniture === false ? "none" : DEFAULT_FURNITURE);
@@ -130,20 +132,25 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     ctx.setLineDash([]);
   }
 
-  // 2. rooms (circle → rectangle morph)
+  // 2. rooms (circle → rectangle morph); in a line drawing only the balconies, outlined
   const fillAlpha = wallsFrac > 0 || nFurn > 0 ? 0.55 : 0.9;
+  const lightLine = P.a("ink3", 0.7), lightW = Math.max(0.6, metre * scale * 0.012);
   for (const s of shapes) {
+    const outdoor = String(s.room.room_type) === "balcony";
+    if (!fill && !outdoor) continue;
     ctx.layer?.(`A-AREA-${String(s.room.room_type).toUpperCase()}`);
-    ctx.fillStyle = hexA(roomColor(s.room.room_type), fillAlpha);
-    ctx.strokeStyle = P.surface; ctx.lineWidth = 0.8;
     ctx.beginPath();
     if (s.kind === "rect" && "w" in s) {
       const m = Number(s.morph ?? 1), r = s.r ?? Math.sqrt((s.w * s.h) / Math.PI);
       const ww = r * 2 + (s.w - r * 2) * m, hh = r * 2 + (s.h - r * 2) * m;
       const rad = Math.max(0, Math.min(((1 - m) * Math.min(ww, hh)) / 2 * scale + 1 * m, (Math.min(ww, hh) * scale) / 2));
-      roundRect(ctx, TX(s.cx - ww / 2), TY(s.cy - hh / 2), ww * scale, hh * scale, rad);
+      roundRect(ctx, TX(s.cx - ww / 2), TY(s.cy - hh / 2), ww * scale, hh * scale, fill ? rad : 0);
     } else ctx.arc(TX(s.cx), TY(s.cy), s.r * scale, 0, 2 * Math.PI);
-    ctx.fill(); ctx.stroke();
+    if (fill) {
+      ctx.fillStyle = hexA(roomColor(s.room.room_type), fillAlpha);
+      ctx.strokeStyle = P.surface; ctx.lineWidth = 0.8;
+      ctx.fill(); ctx.stroke();
+    } else { ctx.strokeStyle = lightLine; ctx.lineWidth = lightW; ctx.stroke(); }
   }
 
   // 3. walls: hollow bands, clipped where they run through another band
@@ -218,7 +225,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     });
     if (wallsFrac >= 0.5) {
       ctx.layer?.("A-WALL-RAIL");
-      ctx.strokeStyle = P.ink2; ctx.lineWidth = Math.max(0.5, (0.6 * scale) / 2);
+      ctx.strokeStyle = fill ? P.ink2 : lightLine; ctx.lineWidth = Math.max(0.5, (0.6 * scale) / 2);
       for (const wl of rails) { ctx.beginPath(); ctx.moveTo(TX(wl.x1), TY(wl.y1)); ctx.lineTo(TX(wl.x2), TY(wl.y2)); ctx.stroke(); }
     }
     // 4. openings: windows (three hairlines), doors (leaf + swing), entrance marker.
@@ -253,7 +260,7 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
         if (op.kind === "entry") {
           const mx = (hx + fx) / 2, my = (hy + fy) / 2, s_ = 0.35 * metre;
           ctx.layer?.("A-ENTRY");
-          ctx.fillStyle = P.accent; ctx.beginPath();
+          ctx.fillStyle = fill ? P.accent : P.ink; ctx.beginPath();
           ctx.moveTo(TX(mx + nx * (tExt + 0.05 * metre)), TY(my + ny * (tExt + 0.05 * metre)));
           ctx.lineTo(TX(mx + nx * (tExt + s_) + ux * s_ * 0.6), TY(my + ny * (tExt + s_) + uy * s_ * 0.6));
           ctx.lineTo(TX(mx + nx * (tExt + s_) - ux * s_ * 0.6), TY(my + ny * (tExt + s_) - uy * s_ * 0.6));
@@ -263,15 +270,16 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     }
   }
 
-  // 5. furniture (placement after RGeoLib, see engine/schematic.js), always in
-  // white: a line drawing at full, 0.5 or 0.2 strength, or white blocks at
-  // 0.2 / 0.5 over the room colour with a white outline
+  // 5. furniture (placement after RGeoLib, see engine/schematic.js), in white over
+  // the room colours: a line drawing at full, 0.5 or 0.2 strength, or white blocks
+  // at 0.2 / 0.5 with a white outline. A line drawing (fill false) has no colour
+  // under it, so the furniture is drawn in ink at the same strengths.
   if (nFurn > 0) {
     ctx.layer?.("A-FURN");
     const filled = furniture.startsWith("fill"), k = furniture.endsWith("20") ? 0.2 : furniture.endsWith("50") ? 0.5 : 1;
-    const white = (a) => `rgba(255,255,255,${a})`, lw = Math.max(0.7, metre * scale * 0.014);
-    if (filled) { ctx.fillStyle = white(k); ctx.strokeStyle = white(0.95); ctx.lineWidth = lw; }
-    else { ctx.strokeStyle = white(k); ctx.lineWidth = lw; }
+    const tone = fill ? (a) => `rgba(255,255,255,${a})` : (a) => P.a("ink", a), lw = Math.max(0.7, metre * scale * 0.014);
+    if (filled) { ctx.fillStyle = tone(fill ? k : k * 0.25); ctx.strokeStyle = tone(fill ? 0.95 : 0.55); ctx.lineWidth = lw; }
+    else { ctx.strokeStyle = tone(k); ctx.lineWidth = lw; }
     for (const piece of syn.furniture.slice(0, nFurn)) for (const pr of piece.prims) {
       ctx.beginPath();
       if (pr[0] === "rect") { ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale); if (filled) ctx.fill(); ctx.stroke(); }

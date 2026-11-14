@@ -103,6 +103,8 @@ export class GeometryCanvas {
     this.guides = [];           // snap guide lines shown while dragging
     this.snapOn = LS("snap", true);
     this.gridOn = LS("grid", true);
+    this.fillOn = LS("fill", true);       // room colours, or the coloured outlines alone
+    this.textOn = LS("text", true);       // room names and sizes
     this.undoStack = []; this.redoStack = [];
     this.cv.addEventListener("pointerdown", (e) => this.down(e));
     this.cv.addEventListener("pointermove", (e) => this.move(e));
@@ -175,6 +177,8 @@ export class GeometryCanvas {
   redo() { if (!this.redoStack.length) return; this.undoStack.push(this.snapshot()); this.restore(this.redoStack.pop()); this.guides = []; this.onHistory?.(); this.changed(); }
   setSnap(on) { this.snapOn = !!on; SS("snap", this.snapOn); }
   setGrid(on) { this.gridOn = !!on; SS("grid", this.gridOn); this.draw(); }
+  setFill(on) { this.fillOn = !!on; SS("fill", this.fillOn); this.draw(); }
+  setText(on) { this.textOn = !!on; SS("text", this.textOn); this.draw(); }
 
   // ── zoom and pan ──────────────────────────────────────────────────
   // pxPerM is the zoom (28 px per metre = 100 %); pan moves the origin.
@@ -546,7 +550,7 @@ export class GeometryCanvas {
 
   hintText(stepTxt) {
     if (COARSE()) return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}pinch to zoom and pan`;
-    return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}wheel to zoom · middle-drag or Space + drag to pan · ${MOD_KEY} + drag copies · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · ${MOD_KEY}+Z undo · Alt: no snapping`;
+    return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}${MOD_KEY} + drag copies · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · Alt: no snapping`;
   }
 
   /** Dot grid (1 m, or 5 m when zoomed far out; 1 ft / 5 ft) and the hint line. */
@@ -573,21 +577,25 @@ export class GeometryCanvas {
     }
     for (const r of this.rooms) {
       const [x, y, rw, rh] = this.rectPx(r), col = roomColor(r.type), sel = this.selected.has(r.id);
-      ctx.fillStyle = hexA(col, sel ? 0.75 : 0.55);
-      ctx.fillRect(x, y, rw, rh);
+      // Fill off: the coloured outline alone (a faint tint marks a selected room)
+      if (this.fillOn || sel) { ctx.fillStyle = hexA(col, this.fillOn ? (sel ? 0.75 : 0.55) : 0.16); ctx.fillRect(x, y, rw, rh); }
       ctx.strokeStyle = sel ? P.ink : shade(col, 0.87);
-      ctx.lineWidth = sel ? 1.4 : 1;
+      ctx.lineWidth = sel ? 1.4 : this.fillOn ? 1 : 1.25;
       ctx.strokeRect(x + 0.5, y + 0.5, rw - 1, rh - 1);
-      ctx.save();
-      ctx.beginPath(); ctx.rect(x, y, rw, rh); ctx.clip();
-      ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.font = `500 10.5px ${FONT}`;
-      ctx.fillText(`${ROOM_LABELS[r.type] || r.type} ${String(r.id).split("_").pop()}`, x + rw / 2, y + 4);
-      ctx.font = `9px ${FONT}`; ctx.textBaseline = "middle";
-      const ar = r.h > 0 ? r.w / r.h : 1;
-      const lines = [this.fmtArea(r.w * r.h), `${this.fmtLen(r.w)} × ${this.fmtLen(r.h)}`, `ar ${ar.toFixed(2)}`];
-      lines.forEach((t, i) => ctx.fillText(t, x + rw / 2, y + rh / 2 + (i - 1) * 12));
-      ctx.restore();
+      if (this.textOn) {
+        // white on the colour; ink on the bare canvas
+        ctx.save();
+        ctx.beginPath(); ctx.rect(x, y, rw, rh); ctx.clip();
+        ctx.fillStyle = this.fillOn ? "#fff" : P.ink; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.font = `500 10.5px ${FONT}`;
+        ctx.fillText(`${ROOM_LABELS[r.type] || r.type} ${String(r.id).split("_").pop()}`, x + rw / 2, y + 4);
+        ctx.font = `9px ${FONT}`; ctx.textBaseline = "middle";
+        if (!this.fillOn) ctx.fillStyle = P.ink2;
+        const ar = r.h > 0 ? r.w / r.h : 1;
+        const lines = [this.fmtArea(r.w * r.h), `${this.fmtLen(r.w)} × ${this.fmtLen(r.h)}`, `ar ${ar.toFixed(2)}`];
+        lines.forEach((t, i) => ctx.fillText(t, x + rw / 2, y + rh / 2 + (i - 1) * 12));
+        ctx.restore();
+      }
       if (sel && this.selected.size === 1) this.drawHandles(ctx, P, x, y, rw, rh);
     }
     this.drawGuides(ctx, P);

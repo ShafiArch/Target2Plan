@@ -21,8 +21,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Export the plan as drawn. `view` is {syn, scored} from previewEdit, `s` the
- * Stage 4 plan, `opt` the editor's view options (edges, furniture style),
- * `edited` whether the drawing differs from the plan as generated.
+ * Stage 4 plan, `opt` the editor's view options (edges, furniture style, fill
+ * or line drawing, text), `edited` whether the drawing differs from the plan as generated.
  * Resolves to {blob, name}.
  */
 export async function exportPlan(fmt, { s, view, opt, edited }) {
@@ -40,7 +40,7 @@ export async function exportPlan(fmt, { s, view, opt, edited }) {
 }
 
 const lastFrame = (syn) => syn.frames[syn.frames.length - 1];
-const paintOpts = (opt, extra) => ({ showEdges: !!opt.edges, showWalls: true, furniture: opt.furn || "line50", showLabels: true, roomColor: lightRoomColor, ...extra });
+const paintOpts = (opt, extra) => ({ showEdges: !!opt.edges, showWalls: true, furniture: opt.furn || "line50", fill: opt.fill !== false, showLabels: opt.text !== false, roomColor: lightRoomColor, ...extra });
 
 // ═══════════════════════════════ raster ═════════════════════════════════
 // JPG: the plan on white with its title and scores below. PNG: the plan alone
@@ -55,7 +55,7 @@ async function raster(fmt, s, syn, opt, info) {
   if (jpg) ctx.fillRect(0, 0, W, H);
   else for (const sh of lastFrame(syn).shapes || []) if ("w" in sh) ctx.fillRect(m + (sh.cx - sh.w / 2 - x0) * k, m + (sh.cy - sh.h / 2 - y0) * k, sh.w * k, sh.h * k);
   paintFrame(ctx, s, syn, lastFrame(syn), W, H, P, paintOpts(opt, { transform: { scale: k, ox: m - x0 * k, oy: m - y0 * k }, fontScale: pxm / 34 }));
-  northArrow(ctx, P, W - m + 6, m - 6, 9);
+  northArrow(ctx, P, W - m + 6, m - 6, 9, opt.fill === false);
   if (jpg) {
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.font = `600 13px ${FONT}`; ctx.fillStyle = P.ink; ctx.fillText(info.title, m, H - foot + 14);
@@ -64,9 +64,10 @@ async function raster(fmt, s, syn, opt, info) {
   return canvasBlob(cv, jpg ? "image/jpeg" : "image/png", 0.92);
 }
 
-function northArrow(ctx, P, x, y, s) {
+/** North arrow in the app's crimson, or in ink on a line drawing (`plain`). */
+function northArrow(ctx, P, x, y, s, plain = false) {
   ctx.layer?.("A-ANNO-TEXT");
-  ctx.fillStyle = P.accent;
+  ctx.fillStyle = plain ? P.ink : P.accent;
   ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.55, y + s * 0.6); ctx.lineTo(x, y + s * 0.25); ctx.lineTo(x - s * 0.55, y + s * 0.6); ctx.closePath(); ctx.fill();
   ctx.font = `600 ${s * 1.1}px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText("N", x, y + s * 0.8);
 }
@@ -159,7 +160,7 @@ async function pdf(s, syn, opt, info) {
   }
   rec.font = "8px x"; rec.fillStyle = P.ink2; rec.textAlign = "center";
   rec.fillText("0", bx, by + 13); rec.fillText(`${barM} m`, bx + barM * ptm, by + 13);
-  northArrow(rec, P, PW - mar - 6, mar + 10, 10);
+  northArrow(rec, P, PW - mar - 6, mar + 10, 10, opt.fill === false);
   return new Blob([await pdfBytes(rec.ops, PW, PH, info.title)], { type: "application/pdf" });
 }
 
@@ -264,8 +265,10 @@ const LAYERS = {
   "A-WALL": 7, "A-WALL-RAIL": 8, "A-GLAZ": 8, "A-DOOR": 8, "A-ENTRY": 242, "A-FURN": 9, "A-ANNO-TEXT": 7, "A-ANNO-EDGE": 8,
 };
 const layerColor = (L) => LAYERS[L] ?? (L.startsWith("A-AREA-") ? 8 : 7);
-// which recorded drawing is kept per layer: rooms and the entrance marker as outlines of their fills, the rest as strokes
-const keepFill = (layer) => layer.startsWith("A-AREA") || layer === "A-ENTRY";
+// which recorded drawing is kept per layer: rooms as the outlines of their fills (a line
+// drawing strokes the balconies' outlines instead), the entrance marker as the outline of
+// its fill, everything else as strokes
+const keepOp = (op, layer) => (op === "fill" ? layer.startsWith("A-AREA") || layer === "A-ENTRY" : layer !== "A-ENTRY");
 const dxfText = (t) => String(t).replace(/\s*·\s*/g, ", ").replace(/²/g, "2").replace(/×/g, "x").replace(/[^\x20-\x7e]/g, "?");
 
 function dxf(s, syn, opt, info) {
@@ -316,7 +319,7 @@ function dxf(s, syn, opt, info) {
       E(() => { g(0, "TEXT"); g(8, L); g(10, x); g(20, y); g(30, 0); g(40, hgt); g(1, dxfText(o.text)); if (ha || va) { g(72, ha); g(73, va); g(11, x); g(21, y); g(31, 0); } });
       continue;
     }
-    if ((o.op === "fill") !== keepFill(L) || !o.path.length) continue;
+    if (!keepOp(o.op, L) || !o.path.length) continue;
     const key = `${L}|${JSON.stringify(o.path)}`;
     if (seen.has(key)) continue;        // the same outline filled and stroked: once
     seen.add(key);
