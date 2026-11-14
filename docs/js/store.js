@@ -91,11 +91,15 @@ class Store {
     };
   }
 
-  /** Plans changed in the plan editor, as {edits: {plan_index: rooms in metres}} (none: {}).
-   *  Stage 4 itself is not stored; a loaded session rebuilds it and applies these. */
+  /** Plans changed in the plan editor, as {edits: {plan_index: {rooms in metres, doors turned}}}
+   *  (none: {}). Stage 4 itself is not stored; a loaded session rebuilds it and applies these. */
   stage4Edits() {
     const edits = {};
-    for (const s of this.stage4.schematics) if (s.edit) edits[s.plan_index] = s.edit.rooms.map((r) => ({ ...r }));
+    for (const s of this.stage4.schematics) {
+      if (!s.edit) continue;
+      edits[s.plan_index] = { rooms: s.edit.rooms.map((r) => ({ ...r })) };
+      if (s.edit.doors) edits[s.plan_index].doors = JSON.parse(JSON.stringify(s.edit.doors));
+    }
     return Object.keys(edits).length ? { edits } : {};
   }
 

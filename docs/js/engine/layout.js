@@ -113,15 +113,16 @@ export function scoreLayout(rooms, roomById, walls, metre, inputs, targets = nul
  * The plan rebuilt from edited rooms: a synthesis-like record (rects, walls,
  * openings, furniture, frames that replay walls, doors, windows and furniture)
  * plus the as-drawn scores. `base` is the plan's original synthesis (its
- * `metre` keeps the drawing scale of the other plans).
+ * `metre` keeps the drawing scale of the other plans); `doors` holds the doors
+ * turned in the editor ({doorKey: {end, into}}, see buildOpenings).
  */
-export function buildLayout(schematic, rooms, base, inputs) {
+export function buildLayout(schematic, rooms, base, inputs, doors = null) {
   const metre = base.metre || 1;
   const records = new Map((schematic.orig?.rooms || schematic.rooms || []).map((r) => [r.room_id, r]));
   const present = new Set(rooms.map((r) => r.id));
   const edges = (schematic.edges || []).filter((e) => (present.has(e.source) || String(e.source).startsWith("outside")) && (present.has(e.target) || String(e.target).startsWith("outside")));
   let rects = rectsFromLayout(rooms, records, metre);
-  const parts = buildPlanParts(rects, edges, metre, wwrForRooms(rects.map((r) => r.room || { room_id: r.room_id }), inputs.wwr));
+  const parts = buildPlanParts(rects, edges, metre, wwrForRooms(rects.map((r) => r.room || { room_id: r.room_id }), inputs.wwr), doors);
   const scored = scoreLayout(rooms, records, parts.walls, metre, inputs, schematic.targets);
   // rooms carry their as-drawn scores (room labels, room cards)
   const byId = new Map(scored.rooms.map((r) => [r.room_id, r]));

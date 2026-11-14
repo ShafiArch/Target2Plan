@@ -1,18 +1,20 @@
 // planEditor.js: "Edit selected" in Stage 4 (and "Edit plan" in a plan's detail
 // view). The plans open one at a time on a canvas like the drawing canvas of
 // Stage 1: rooms move and resize (snapping to each other's edges and centres,
-// undo / redo, arrow keys, R to turn), and walls, doors, windows, furniture and
-// the room and plan scores follow every change. A floating panel, folded to one
-// bar until it is opened, holds the selected room, the checks, the rooms and the
-// Pareto front with this plan moving on it. Replace puts the edit into the plan,
-// Next goes on to the next plan, Save also saves the session, Export writes the
-// plan as drawn, Discard drops the changes.
+// undo / redo, arrow keys, R to turn), Ctrl+D turns the door between two
+// selected rooms, and walls, doors, windows, furniture and the room and plan
+// scores follow every change. Fill and Text switch the room colours (off: a
+// line drawing) and the room labels. A floating panel, folded to one bar until
+// it is opened, holds the selected room, the checks, the rooms and the Pareto
+// front with this plan moving on it. Replace puts the edit into the plan,
+// Previous and Next go through the plans, Save also saves the session, Export
+// writes the plan as drawn, Discard drops the changes.
 import { h, palette, pad2, fmt, toast, confirmAsk, fitCanvas, FONT, MONO, ZONE_LABELS, downloadBlob } from "./common.js";
 import { GeometryCanvas, MOD_KEY } from "./geometry.js";
 import { paintFrame, originalSynthesis, FURNITURE_STYLES } from "./schematicPaint.js";
 import { overlapsIn } from "../engine/layout.js";
-import { paretoFrontIndices } from "../engine/schematic.js";
-import { applyEdit, currentLayout, originalLayout, previewEdit, sameLayout } from "./planEdit.js";
+import { paretoFrontIndices, doorKey, doorEnd } from "../engine/schematic.js";
+import { applyEdit, currentDoors, currentLayout, originalLayout, previewEdit, sameDoors, sameLayout } from "./planEdit.js";
 import { EXPORT_FORMATS, exportPlan } from "./planExport.js";
 
 const SIDES = ["N", "E", "S", "W"];
@@ -22,6 +24,18 @@ const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return 
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 const roomName = (id) => String(id).replace(/_/g, " ");
 const OPEN_FIT = 0.7;        // computers open the plan at 70 % of the full fit; phones fill the screen
+const isDoorKey = (e) => (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d";
+
+/** The door (or balcony door) between rooms a and b in a built plan, or null. */
+function doorBetween(syn, a, b) {
+  const key = doorKey(a, b);
+  return syn.openings.find((o) => (o.kind === "door" || o.kind === "balcony_door") && o.rooms && doorKey(o.rooms[0], o.rooms[1]) === key) || null;
+}
+/** Where a door sits, in words: the end of its wall by compass side. */
+function doorWhere(o) {
+  const along = Math.abs(o.wall.y1 - o.wall.y2) < 1e-6 ? ["west", "east"] : ["north", "south"];
+  return `${along[doorEnd(o)]} end`;
+}
 
 class PlanCanvas extends GeometryCanvas {
   constructor(wrap, ed) {
@@ -30,6 +44,14 @@ class PlanCanvas extends GeometryCanvas {
     this.fitMargin = 56;
     this.pending = 0;
     this.selKey = "";
+    this.doors = {};          // doors turned with Ctrl+D: {doorKey: {end, into}}
+  }
+  // the doors turned are part of each undo step
+  snapshot() { return { ...super.snapshot(), doors: { ...this.doors } }; }
+  restore(st) { super.restore(st); this.doors = { ...(st.doors || {}) }; }
+  key(e) {
+    if (isDoorKey(e)) { e.preventDefault(); e.stopPropagation(); this.ed.flipDoor?.(); return; }
+    super.key(e);
   }
   // Pointer moves come faster than the screen refreshes: the plan is rebuilt
   // (walls, doors, windows, furniture, scores) and drawn once per frame.
@@ -65,7 +87,7 @@ class PlanCanvas extends GeometryCanvas {
   }
   hintText() {
     if (COARSE()) return "drag a room or an edge · pinch to zoom and pan";
-    return `wheel to zoom · middle-drag or Space + drag to pan · drag a room or an edge · ${MOD_KEY}+Z undo · arrow keys nudge · R turns a room · Alt: no snapping`;
+    return `drag a room or an edge · arrow keys nudge · R turns a room · ${MOD_KEY}+D: door flip (select both rooms) · Alt: no snapping`;
   }
   draw() {
     const key = [...this.selected].sort().join("|");
@@ -78,7 +100,7 @@ class PlanCanvas extends GeometryCanvas {
       const syn = ed.view.syn, frame = syn.frames[syn.frames.length - 1], [ox, oy] = this.origin();
       paintFrame(ctx, ed.s, syn, frame, w, H, P, {
         transform: { scale: this.pxPerM / syn.metre, ox, oy }, showEdges: ed.opt.edges, showWalls: true,
-        furniture: ed.opt.furn, showLabels: true, fontScale: Math.max(0.8, Math.min(2.4, this.pxPerM / 30)),
+        furniture: ed.opt.furn, fill: ed.opt.fill, showLabels: ed.opt.text, fontScale: Math.max(0.8, Math.min(2.4, this.pxPerM / 30)),
       });
     }
     // rooms that overlap, the selection with its handles, its size
@@ -129,13 +151,13 @@ function niceTicks(lo, hi, n = 4) {
 
 /**
  * Open the editor on `plans` (Stage 4 schematics). `opt` holds the Stage 4 view
- * options (edges, furniture style); `onApply(s)` is called after a plan
- * changed; `saveSession()` saves the session file.
+ * options (edges, furniture style; the editor adds fill and text, remembered);
+ * `onApply(s)` is called after a plan changed; `saveSession()` saves the session file.
  */
 export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   if (!plans.length) return;
-  const ed = { s: null, opt: { ...opt }, view: null, overlaps: [], changed: () => {}, onSelect: null, insets: null };
-  const drafts = new Map();          // plan_index -> {rooms, undo, redo, selected}
+  const ed = { s: null, opt: { ...opt, fill: !!LS("peFill", true), text: !!LS("peText", true) }, view: null, overlaps: [], changed: () => {}, onSelect: null, insets: null, flipDoor: null };
+  const drafts = new Map();          // plan_index -> {rooms, doors, undo, redo, selected}
   let cur = -1;
 
   // ── header ─────────────────────────────────────────────────────────
@@ -156,14 +178,23 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   const syncToggles = () => {
     for (const [b, on] of [[bSnap, canvas.snapOn], [bGrid, canvas.gridOn]]) { b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); }
   };
-  const bReset = h("button.link-btn", { title: "Back to the plan as it was generated", on: { click: () => { canvas.record(); canvas.rooms = originalLayout(ed.s); canvas.selected = new Set(); canvas.changed(); } } }, "Reset to generated");
+  const bReset = h("button.link-btn", { title: "Back to the plan as it was generated", on: { click: () => { canvas.record(); canvas.rooms = originalLayout(ed.s); canvas.doors = {}; canvas.selected = new Set(); canvas.changed(); } } }, "Reset to generated");
   const cEdges = h("button.chip" + (ed.opt.edges ? ".active" : ""), { title: "Dashed connectivity edges", on: { click: () => { ed.opt.edges = !ed.opt.edges; cEdges.classList.toggle("active", ed.opt.edges); canvas.draw(); } } }, "● Edges");
   const furnSel = h("select", { "aria-label": "Furniture style" }, ...FURNITURE_STYLES.map(([v, l]) => h("option", { value: v }, l)));
   furnSel.value = ed.opt.furn;
   furnSel.addEventListener("change", () => { ed.opt.furn = furnSel.value; canvas.draw(); });
+  // Fill off: a line drawing (walls, doors, windows, furniture; balconies outlined in light grey).
+  // Text: the room names and scores. Both remembered; the exports follow them.
+  const cFill = h("button.chip", { title: "Room colours on, or off for a line drawing: walls, doors, windows and furniture (exports follow)", on: { click: () => { ed.opt.fill = !ed.opt.fill; SS("peFill", ed.opt.fill); syncView(); canvas.draw(); } } });
+  const cText = h("button.chip", { title: "Show or hide the room names and scores on the plan (exports follow)", on: { click: () => { ed.opt.text = !ed.opt.text; SS("peText", ed.opt.text); syncView(); canvas.draw(); } } }, "Aa Text");
+  const syncView = () => {
+    cFill.textContent = ed.opt.fill ? "■ Fill" : "□ Fill";
+    for (const [c, on] of [[cFill, ed.opt.fill], [cText, ed.opt.text]]) { c.classList.toggle("active", on); c.setAttribute("aria-pressed", String(on)); }
+  };
+  syncView();
   const zoomPct = h("button.zoom-pct", { title: "Back to 100 %", on: { click: () => canvas.setScale(GeometryCanvas.BASE_PX_PER_M) } }, "100%");
   const zoomCtl = h("div.zoom-ctl", h("button", { title: "Zoom out (-)", on: { click: () => canvas.zoomBy(1 / 1.25) } }, "−"), zoomPct, h("button", { title: "Zoom in (+)", on: { click: () => canvas.zoomBy(1.25) } }, "+"), h("button.fit", { title: "Fit the plan (0)", on: { click: () => canvas.fit() } }, "Fit"));
-  const tools = h("div.pe-tools", h("div.zoom-ctl.edit-ctl", bUndo, bRedo, bSnap, bGrid), bReset, h("span.tsep"), cEdges, h("label.chip.chip-select.active", "▦ Furniture", furnSel), h("span.grow"), zoomCtl);
+  const tools = h("div.pe-tools", h("div.zoom-ctl.edit-ctl", bUndo, bRedo, bSnap, bGrid), bReset, h("span.tsep"), cEdges, h("label.chip.chip-select.active", "▦ Furniture", furnSel), cFill, cText, h("span.grow"), zoomCtl);
 
   // ── body: the canvas, and a panel floating over it ────────────────────
   // Folded, the panel is one bar (the selected room); the grey button opens it
@@ -195,9 +226,10 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   const bExport = h("button.btn-ghost", { title: "Save the plan as drawn as JPG, PNG, DXF or PDF", on: { click: (e) => { e.stopPropagation(); toggleMenu(); } } }, "Export ▾");
   const menu = h("div.pe-menu.hidden", ...EXPORT_FORMATS.map(([fmtId, label, sub]) => h("button", { on: { click: () => { hideMenu(); doExport(fmtId); } } }, h("span", label), h("span.sub", sub))));
   const bReplace = h("button.btn-primary", { title: "Put the changes into the plan", on: { click: () => replace() } }, "Replace");
-  const bGoNext = h("button.btn-ghost.pe-next", { title: "Next selected plan (changes you have not put in stay here as a draft)", on: { click: () => go(cur + 1) } }, "Next  →");
+  const bGoPrev = h("button.btn-ghost.pe-nav.pe-prev", { title: "Previous selected plan (changes you have not put in stay here as a draft)", on: { click: () => go(cur - 1) } }, "←  Previous");
+  const bGoNext = h("button.btn-ghost.pe-nav.pe-next", { title: "Next selected plan (changes you have not put in stay here as a draft)", on: { click: () => go(cur + 1) } }, "Next  →");
   const statusEl = h("span.pe-status");
-  const foot = h("div.pe-foot", statusEl, h("span.grow"), bDiscard, bSave, h("span.pe-export", bExport, menu), bReplace, bGoNext);
+  const foot = h("div.pe-foot", statusEl, h("span.grow"), bDiscard, bSave, h("span.pe-export", bExport, menu), bReplace, bGoPrev, bGoNext);
 
   const panel = h("div.plan-editor", { role: "dialog", "aria-label": "Edit plan" }, head, tools, body, foot);
   document.body.append(panel);
@@ -222,7 +254,7 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   let sideTimer = 0;
   ed.changed = () => {
     if (!ed.s) return;
-    ed.view = previewEdit(ed.s, canvas.rooms, store.inputs);
+    ed.view = previewEdit(ed.s, canvas.rooms, store.inputs, canvas.doors);
     ed.overlaps = overlapsIn(canvas.rooms);
     const c = ed.view.scored.computed;
     vNow.textContent = fmt(c.qvci, 2); aNow.textContent = fmt(c.aqi, 2);
@@ -231,7 +263,33 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     sideTimer = requestAnimationFrame(refreshSide);
   };
   ed.onSelect = () => { cancelAnimationFrame(sideTimer); sideTimer = requestAnimationFrame(refreshSide); };
-  const dirty = () => !!ed.s && !sameLayout(canvas.rooms, currentLayout(ed.s));
+  const dirty = () => !!ed.s && (!sameLayout(canvas.rooms, currentLayout(ed.s)) || !sameDoors(canvas.doors, currentDoors(ed.s)));
+
+  // ── Ctrl+D: the door between the two selected rooms goes round its four places,
+  // each end of their shared wall opening into either room (one change per press)
+  ed.flipDoor = () => {
+    if (!ed.view) return;
+    const sel = canvas.selectedRooms();
+    if (sel.length !== 2) { toast(`Select the two rooms of a door (${MOD_KEY} + click), then ${MOD_KEY}+D.`); return; }
+    const [a, b] = sel.map((r) => r.id).sort(), key = doorKey(a, b), A = roomName(a), B = roomName(b);
+    const door = doorBetween(ed.view.syn, a, b);
+    if (!door) {
+      const linked = (ed.s.edges || []).some((e) => doorKey(e.source, e.target) === key);
+      const open = ed.view.syn.openings.some((o) => o.kind === "open" && o.rooms && doorKey(o.rooms[0], o.rooms[1]) === key);
+      toast(open ? `${A} and ${B} are open to each other: there is no door to flip.` : linked ? `${A} and ${B} share no wall long enough for a door.` : `${A} and ${B} are not connected, so there is no door between them.`);
+      return;
+    }
+    const ring = [[0, a], [0, b], [1, b], [1, a]];
+    const at = ring.findIndex(([e, r]) => e === doorEnd(door) && r === door.into);
+    const [end, into] = ring[(at + 1) % ring.length];
+    canvas.record();
+    // a choice that matches where the synthesis would put the door anyway is not kept
+    const rest = { ...canvas.doors };
+    delete rest[key];
+    const plain = doorBetween(previewEdit(ed.s, canvas.rooms, store.inputs, rest).syn, a, b);
+    canvas.doors = plain && doorEnd(plain) === end && plain.into === into ? rest : { ...rest, [key]: { end, into } };
+    canvas.changed();
+  };
 
   function refreshSide() {
     if (!ed.view) return;
@@ -246,8 +304,16 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     if (!isOpen()) return;          // folded: the bar is all there is
     // the selected room: size inputs, zone and scores as drawn
     selSec.replaceChildren();
-    if (sel.length !== 1) selSec.append(h("div.hint", sel.length ? `${sel.length} rooms selected: drag to move them together, arrow keys nudge.` : "Click a room to select it; drag it or an edge or corner to change the plan."));
-    else {
+    if (sel.length !== 1) {
+      selSec.append(h("div.hint", sel.length ? `${sel.length} rooms selected: drag to move them together, arrow keys nudge.` : "Click a room to select it; drag it or an edge or corner to change the plan."));
+      // two rooms with a door between them: where it is, and the button for Ctrl+D (touch screens have no keys)
+      const door = sel.length === 2 ? doorBetween(ed.view.syn, sel[0].id, sel[1].id) : null;
+      if (door) {
+        selSec.append(h("div.pe-door",
+          h("button.btn-ghost", { title: `Move or turn the door between these rooms (${MOD_KEY}+D)`, on: { click: () => { ed.flipDoor(); canvas.cv.focus({ preventScroll: true }); } } }, "Flip door"),
+          h("span.hint", `Opens into ${roomName(door.into)}, ${doorWhere(door)} of the wall · ${MOD_KEY}+D`)));
+      }
+    } else {
       const r = sel[0], rec = byId.get(r.id) || {};
       const num = (val, set) => {
         const inp = h("input", { type: "number", min: 1, max: 40, step: 0.05, value: val.toFixed(2) });
@@ -367,7 +433,7 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   // ── plans ──────────────────────────────────────────────────────────
   function stash() {
     if (cur < 0) return;
-    drafts.set(plans[cur].plan_index, { rooms: canvas.rooms.map((r) => ({ ...r })), undo: canvas.undoStack, redo: canvas.redoStack, selected: [...canvas.selected] });
+    drafts.set(plans[cur].plan_index, { rooms: canvas.rooms.map((r) => ({ ...r })), doors: { ...canvas.doors }, undo: canvas.undoStack, redo: canvas.redoStack, selected: [...canvas.selected] });
   }
   function load(i) {
     stash();
@@ -376,13 +442,13 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     ed.s = s;
     originalSynthesis(s);
     canvas.rooms = d ? d.rooms.map((r) => ({ ...r })) : currentLayout(s);
+    canvas.doors = d ? { ...d.doors } : currentDoors(s);
     canvas.undoStack = d ? d.undo : []; canvas.redoStack = d ? d.redo : [];
     canvas.selected = new Set(d ? d.selected : []);
     idxEl.textContent = `#${pad2(s.plan_index)}`;
     countEl.textContent = `${i + 1} of ${plans.length}`;
-    switcher.classList.toggle("hidden", plans.length < 2);
-    bGoNext.classList.toggle("hidden", plans.length < 2);
-    bPrev.disabled = i === 0; bNext.disabled = bGoNext.disabled = i === plans.length - 1;
+    for (const el of [switcher, bGoPrev, bGoNext]) el.classList.toggle("hidden", plans.length < 2);
+    bPrev.disabled = bGoPrev.disabled = i === 0; bNext.disabled = bGoNext.disabled = i === plans.length - 1;
     const pc = (s.orig || s).computed || {}, tg = s.targets || {};
     refEl.replaceChildren(...[h("span", `Zone plan V ${fmt(pc.qvci, 2)} · A ${fmt(pc.aqi, 2)}`), tg.present ? h("span", `Target V ${fmt(tg.qvci, 2)} · A ${fmt(tg.aqi, 2)}`) : null].filter(Boolean));
     canvas.onHistory();
@@ -394,7 +460,7 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   // ── actions ────────────────────────────────────────────────────────
   function applyCurrent() {
     const s = ed.s;
-    applyEdit(s, canvas.rooms.map((r) => ({ ...r })), store.inputs);
+    applyEdit(s, canvas.rooms.map((r) => ({ ...r })), store.inputs, canvas.doors);
     drafts.delete(s.plan_index);
     canvas.resetHistory();
     onApply?.(s);
@@ -419,6 +485,7 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     if (!dirty()) return;
     canvas.record();
     canvas.rooms = currentLayout(ed.s);
+    canvas.doors = currentDoors(ed.s);
     canvas.selected = new Set();
     drafts.delete(ed.s.plan_index);
     canvas.changed();
@@ -437,12 +504,18 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
 
   async function requestClose() {
     stash();
-    const pending = plans.filter((p) => { const d = drafts.get(p.plan_index); return d && !sameLayout(d.rooms, currentLayout(p)); });
+    const pending = plans.filter((p) => { const d = drafts.get(p.plan_index); return d && (!sameLayout(d.rooms, currentLayout(p)) || !sameDoors(d.doors, currentDoors(p))); });
     if (pending.length && !(await confirmAsk(`Drop the changes to ${pending.length === 1 ? `plan #${pad2(pending[0].plan_index)}` : `${pending.length} plans`}?`))) return;
     close();
   }
   const onKey = (e) => {
     if (e.key === "Escape") { e.preventDefault(); if (!menu.classList.contains("hidden")) hideMenu(); else requestClose(); }
+    // Ctrl+D, undo and redo also when a button of the editor has the focus (the canvas handles them itself)
+    else if ((e.ctrlKey || e.metaKey) && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "")) {
+      const k = e.key.toLowerCase();
+      if (k === "d") { e.preventDefault(); ed.flipDoor(); }
+      else if (k === "z" || k === "y") { e.preventDefault(); if (k === "y" || e.shiftKey) canvas.redo(); else canvas.undo(); }
+    }
   };
   const onWinResize = () => drawPareto();
   function close() {

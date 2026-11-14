@@ -388,7 +388,20 @@ function doorOn(w, metre, intoRoom, toward, kind = "door") {
   return { kind, x1, y1, x2, y2, hinge: [hx, hy], into: intoRoom, wall: w, width: dw };
 }
 
-export function buildOpenings(rects, walls, edges, metre, wwrByRoom) {
+/** Key of the door between rooms a and b among a plan's door choices (the `doors` of buildOpenings). */
+export const doorKey = (a, b) => [String(a), String(b)].sort().join("|");
+
+/** The end of its wall a door sits at: 0 the west or north end, 1 the east or south end
+ *  (walls run west to east and north to south). */
+export function doorEnd(o) {
+  const w = o.wall, [hx, hy] = o.hinge;
+  return Math.hypot(hx - w.x1, hy - w.y1) <= Math.hypot(hx - w.x2, hy - w.y2) ? 0 : 1;
+}
+
+/** Doors, openings, the entrance and windows. `doors` ({doorKey: {end, into}}, from
+ *  the plan editor's Ctrl+D) puts a door at the other end of its wall or turns it
+ *  into the other room; without it every door goes where the synthesis puts it. */
+export function buildOpenings(rects, walls, edges, metre, wwrByRoom, doors = null) {
   const byId = new Map(rects.map((r) => [r.room_id, r]));
   const openings = [], used = new Map();
   const gx = pySum(rects.map((r) => r.cx)) / Math.max(1, rects.length), gy = pySum(rects.map((r) => r.cy)) / Math.max(1, rects.length);
@@ -424,7 +437,13 @@ export function buildOpenings(rects, walls, edges, metre, wwrByRoom) {
     const kind = ta === "balcony" || tb === "balcony" ? "balcony_door" : "door";
     if (kind === "balcony_door") into = ta !== "balcony" ? a : b;
     const oc = byId.get(other);
-    const d = doorOn(w, metre, into, kind !== "balcony_door" ? [oc.cx, oc.cy] : hub, kind);
+    let toward = kind !== "balcony_door" ? [oc.cx, oc.cy] : hub;
+    const pick = doors ? doors[doorKey(a, b)] : null;
+    if (pick) {
+      if (pick.into === a || pick.into === b) into = pick.into;
+      if (pick.end === 0 || pick.end === 1) toward = pick.end ? [w.x2, w.y2] : [w.x1, w.y1];
+    }
+    const d = doorOn(w, metre, into, toward, kind);
     if (d) { d.rooms = [a, b]; openings.push(d); occupy(w, d); }
   }
   if (entrance == null && living) entrance = living.room_id;
@@ -812,11 +831,12 @@ export function wwrForRooms(rooms, wwrByType = null) {
 
 /** Steps 6 to 8 of the synthesis for rooms already in place (rects in drawing
  *  units, `metre` units per metre): walls, doors and windows (sorted as they
- *  are drawn) and furniture. The plan editor rebuilds an edited plan with it. */
-export function buildPlanParts(rects, edges, metre, wwrByRoom) {
+ *  are drawn) and furniture. The plan editor rebuilds an edited plan with it
+ *  (`doors`: its door choices, see buildOpenings). */
+export function buildPlanParts(rects, edges, metre, wwrByRoom, doors = null) {
   const tol = Math.max(0.75, 0.03 * metre);
   const walls = buildWalls(rects, tol);
-  const openings = buildOpenings(rects, walls, edges, metre, wwrByRoom);
+  const openings = buildOpenings(rects, walls, edges, metre, wwrByRoom, doors);
   const order = { open: 0, door: 1, balcony_door: 1, entry: 2, window: 3 };
   const sortedOpen = sortBy(openings, (o) => [order[o.kind] ?? 9]);
   const furniture = [];

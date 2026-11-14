@@ -437,7 +437,9 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .pe-foot { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px 8px 16px; border-top: 1px solid var(--border); }
 .pe-foot .btn-ghost { padding: 5px 12px; font-size: 11.5px; border-radius: 6px; }
 .pe-foot button:disabled { opacity: 0.45; cursor: default; }
-.pe-foot .pe-next { color: var(--ink); }
+.pe-foot .pe-nav { color: var(--ink); }
+.pe-door { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.pe-door .btn-ghost { flex: none; padding: 4px 11px; font-size: 11px; border-radius: 6px; color: var(--ink); }
 .pe-status { font-size: 11px; color: var(--ink3); white-space: nowrap; }
 .pe-status.changed { color: var(--accent); font-weight: 600; }
 .pe-export { position: relative; display: inline-flex; }
@@ -497,6 +499,8 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
   .mode-pill .long { display: none; }
   .mode-pill .short { display: inline; }
   .mode-bar .draw-ctl, .mode-bar .btn-primary { margin-left: auto; flex: none; }
+  /* edit buttons, units and zoom take two lines when one is too narrow for them */
+  .mode-bar .draw-ctl { flex: 1 1 100%; flex-wrap: wrap; row-gap: 6px; }
   .draw-ctl { gap: 5px; }
   .zoom-ctl button { padding: 2px 5px; min-width: 20px; }
   .zoom-ctl .zoom-pct { min-width: 38px; font-size: 10px; }
@@ -512,7 +516,7 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
   .palette > * { flex: none; }
   .room-chip { padding: 2px 5px 2px 5px; font-size: 9.5px; gap: 3px; }
   .room-chip .swatch { width: 7px; height: 7px; }
-  .geom-wrap { min-height: 240px; }
+  .geom-wrap { min-height: 200px; }
   .draw-panel.fullscreen { padding: 8px 10px 8px; gap: 6px; }
   .draw-panel.fullscreen .draw-info { display: none; }
   .fs-min .long { display: none; }
