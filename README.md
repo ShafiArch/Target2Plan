@@ -107,6 +107,7 @@ desktop/
   src-tauri/         the desktop app: tauri.conf.json, src/main.rs,
                      capabilities/, icons/ (from desktop/icon.svg)
 .github/workflows/desktop.yml   builds the installers
+.github/release-notes.md        the text of each desktop release
 ```
 
 ### After retraining a model
@@ -131,13 +132,15 @@ The web engine is a step-for-step port. On the same inputs the networks agree wi
 
 The desktop app is the web app in a native window, built with [Tauri](https://tauri.app): the same files from `docs/`, run by the computer's own web engine (Edge WebView2 on Windows, WebKit on macOS and Linux). It differs only where a desktop program should: exports and sessions are saved through the system's Save dialog, confirmations use system dialogs and links open in the default browser. Everything runs offline.
 
-Installers are built on GitHub: pushing a version tag starts `.github/workflows/desktop.yml`, which builds the Windows, macOS and Linux installers and attaches them to a draft release to check and publish.
+Installers are built on GitHub by `.github/workflows/desktop.yml`. To publish a version:
 
-```
-git tag v1.0.1 && git push origin v1.0.1
-```
+1. On the **Actions** tab, choose **Desktop app** and click **Run workflow**.
+2. Tick **Make a draft release** and click **Run workflow**.
+3. A few minutes later the **Releases** page holds a draft named after the version in `desktop/src-tauri/tauri.conf.json` (v1.0.0, ...), with the Windows, macOS and Linux installers and the notes from `.github/release-notes.md`. Check it and click **Publish release**.
 
-Keep the version in `desktop/src-tauri/tauri.conf.json` and `Cargo.toml` in step with the tag. To build on your own computer, install Rust and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system, then:
+For the next version, raise `version` in `desktop/src-tauri/tauri.conf.json` and `desktop/src-tauri/Cargo.toml` first; a version that is already published is refused. Pushing a version tag (`git tag v1.0.1`, then `git push origin v1.0.1`) makes the same draft for that tag. A run without the tick, and every push to the `desktop-app` branch, only builds the installers and keeps them with the run, to download and try.
+
+To build on your own computer, install Rust and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system, then:
 
 ```
 cd desktop

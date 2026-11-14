@@ -1,7 +1,14 @@
 # Builds the Target2Plan desktop app (desktop/, Tauri) for Windows, macOS and
-# Linux. Pushing a version tag (v1.0.0, ...) attaches the installers to a draft
-# GitHub Release; a push to the desktop-app branch or a manual run keeps them
-# as workflow artifacts to download and try.
+# Linux.
+#
+# To publish a version: Actions tab, "Desktop app", "Run workflow", tick
+# "Make a draft release", "Run workflow". The installers go to a draft release
+# named after the version in desktop/src-tauri/tauri.conf.json (v1.0.0, ...),
+# with the notes in .github/release-notes.md; check it on the Releases page and
+# click "Publish release". Pushing a version tag does the same for that tag.
+#
+# Any other run (a manual run without the tick, a push to the desktop-app
+# branch) keeps the installers as workflow artifacts to download and try.
 name: Desktop app
 
 on:
@@ -9,13 +16,54 @@ on:
     tags: ["v*"]
     branches: ["desktop-app"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: Make a draft release (version from desktop/src-tauri/tauri.conf.json)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  release:
+    name: Draft release
+    if: github.ref_type == 'tag' || inputs.release
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.draft.outputs.id }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # One draft for all three systems, made before the builds start. A draft
+      # left from an earlier run of the same version is reused; a version that
+      # is already published stops the run.
+      - name: Create the draft release
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then TAG="$GITHUB_REF_NAME"; else TAG="v$(jq -r .version desktop/src-tauri/tauri.conf.json)"; fi
+          FOUND=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -r --arg tag "$TAG" 'map(select(.tag_name == $tag)) | first | select(. != null) | "\(.id) \(.draft)"')
+          if [ -n "$FOUND" ]; then
+            read -r ID DRAFT <<< "$FOUND"
+            if [ "$DRAFT" != true ]; then
+              echo "::error::$TAG is already published. For a new release, raise the version in desktop/src-tauri/tauri.conf.json and desktop/src-tauri/Cargo.toml first."
+              exit 1
+            fi
+            echo "Adding the installers to the draft release $TAG that is already there."
+          else
+            ID=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" \
+              -f name="Target2Plan $TAG" -F draft=true -F body=@.github/release-notes.md --jq .id)
+            echo "Created the draft release $TAG."
+          fi
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+
   build:
     name: ${{ matrix.name }}
+    needs: release
+    # runs when the release job made its draft or was not needed
+    if: ${{ !cancelled() && needs.release.result != 'failure' }}
     strategy:
       fail-fast: false
       matrix:
@@ -63,21 +111,7 @@ jobs:
         with:
           projectPath: desktop
           args: ${{ matrix.args }}
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('Target2Plan {0}', github.ref_name) || '' }}
-          releaseBody: |
-            Target2Plan for Windows, macOS and Linux: the same app as https://shafiarch.github.io/Target2Plan/, running on your computer without a browser.
-
-            Download the file for your computer from the assets below:
-            * Windows: the `.exe` installer (or the `.msi`)
-            * macOS, Apple silicon and Intel: the `.dmg`
-            * Linux: the `.AppImage` (or the `.deb` for Debian and Ubuntu)
-
-            These builds are not code-signed yet, so the system asks once before the first start:
-            * Windows: if SmartScreen says "Windows protected your PC", click More info, then Run anyway.
-            * macOS: open the app; when macOS says it cannot verify it, go to System Settings, Privacy & Security, click Open Anyway and enter your password.
-
-            © 2026 Shafiul Islam. Licensed under CC BY-NC 4.0.
-          releaseDraft: true
+          # the draft release's id, or empty when this run is not a release
+          releaseId: ${{ needs.release.outputs.id }}
           uploadUpdaterJson: false
-          uploadWorkflowArtifacts: ${{ github.ref_type != 'tag' }}
+          uploadWorkflowArtifacts: ${{ needs.release.outputs.id == '' }}
