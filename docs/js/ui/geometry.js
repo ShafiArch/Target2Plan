@@ -95,7 +95,6 @@ export class GeometryCanvas {
     this.pan = [0, 0];
     this.autoCentre = true;
     this.box = null;
-    this.counter = {};
     this.spaceDown = false;
     this.onZoom = null;
     this.onHistory = null;      // called when undo / redo become (un)available
@@ -103,6 +102,7 @@ export class GeometryCanvas {
     this.pinch = null;
     this.guides = [];           // snap guide lines shown while dragging
     this.snapOn = LS("snap", true);
+    this.gridOn = LS("grid", true);
     this.undoStack = []; this.redoStack = [];
     this.cv.addEventListener("pointerdown", (e) => this.down(e));
     this.cv.addEventListener("pointermove", (e) => this.move(e));
@@ -158,8 +158,8 @@ export class GeometryCanvas {
   }
 
   // ── history (undo / redo) ─────────────────────────────────────────
-  snapshot() { return { rooms: this.rooms.map((r) => ({ ...r })), selected: [...this.selected], counter: { ...this.counter } }; }
-  restore(st) { this.rooms = st.rooms.map((r) => ({ ...r })); this.selected = new Set(st.selected.filter((id) => this.rooms.some((r) => r.id === id))); this.counter = { ...st.counter }; }
+  snapshot() { return { rooms: this.rooms.map((r) => ({ ...r })), selected: [...this.selected] }; }
+  restore(st) { this.rooms = st.rooms.map((r) => ({ ...r })); this.selected = new Set(st.selected.filter((id) => this.rooms.some((r) => r.id === id))); }
   /** Record the state before an edit (call it, then change the rooms). */
   record(st = this.snapshot()) {
     this.undoStack.push(st);
@@ -174,6 +174,7 @@ export class GeometryCanvas {
   undo() { if (!this.undoStack.length) return; this.redoStack.push(this.snapshot()); this.restore(this.undoStack.pop()); this.guides = []; this.onHistory?.(); this.changed(); }
   redo() { if (!this.redoStack.length) return; this.undoStack.push(this.snapshot()); this.restore(this.redoStack.pop()); this.guides = []; this.onHistory?.(); this.changed(); }
   setSnap(on) { this.snapOn = !!on; SS("snap", this.snapOn); }
+  setGrid(on) { this.gridOn = !!on; SS("grid", this.gridOn); this.draw(); }
 
   // ── zoom and pan ──────────────────────────────────────────────────
   // pxPerM is the zoom (28 px per metre = 100 %); pan moves the origin.
@@ -214,8 +215,6 @@ export class GeometryCanvas {
 
   setRooms(rooms) {
     this.rooms = rooms.map((r) => ({ ...r }));
-    this.counter = {};
-    for (const r of this.rooms) this.counter[r.type] = Math.max(this.counter[r.type] || 0, Number(String(r.id).split("_").pop()) + 1);
     this.selected = new Set(); this.autoCentre = true; this.resetHistory(); this.centre(); this.changed();
   }
   setUnits(u) { if (u !== this.units) { this.units = u; this.draw(); } }
@@ -227,10 +226,9 @@ export class GeometryCanvas {
     const sizes = [["living", 5.5, 4.0], ["bedroom", 4.0, 3.5], ["bedroom", 4.0, 3.5], ["kitchen", 3.0, 3.0], ["bathroom", 2.0, 2.5], ["balcony", 1.5, 3.0]];
     const base = Math.max(...sizes.map((s) => s[2]));
     let x = 0;
-    this.rooms = []; this.counter = {};
+    this.rooms = [];
     for (const [rt, w, hh] of sizes) {
-      const n = this.counter[rt] || 0; this.counter[rt] = n + 1;
-      this.rooms.push({ id: `${rt}_${n}`, type: rt, x, y: base - hh, w, h: hh });
+      this.rooms.push({ id: this.newId(rt), type: rt, x, y: base - hh, w, h: hh });
       x += w + 0.5;
     }
     this.selected = new Set(); this.autoCentre = true; this.centre(); this.changed();
@@ -244,7 +242,7 @@ export class GeometryCanvas {
     this.draw();
   }
 
-  clear() { if (!this.rooms.length) return; this.record(); this.rooms = []; this.counter = {}; this.selected = new Set(); this.changed(); }
+  clear() { if (!this.rooms.length) return; this.record(); this.rooms = []; this.selected = new Set(); this.changed(); }
   removeSelected() {
     if (!this.selected.size || !this.opts.allowRemove) return;
     this.record();
@@ -254,7 +252,33 @@ export class GeometryCanvas {
   counts() { const c = {}; for (const r of this.rooms) c[r.type] = (c[r.type] || 0) + 1; return c; }
   selectAll() { this.selected = new Set(this.rooms.map((r) => r.id)); this.draw(); }
   selectedRooms() { return this.rooms.filter((r) => this.selected.has(r.id)); }
-  newId(type) { const n = this.counter[type] || 0; this.counter[type] = n + 1; return `${type}_${n}`; }
+  /** The lowest free id of a type ("bedroom_1" again once it was deleted); `taken` holds ids
+   *  already given to rooms not yet on the canvas. */
+  newId(type, taken = []) {
+    const used = new Set([...this.rooms.map((r) => r.id), ...taken]);
+    let n = 0;
+    while (used.has(`${type}_${n}`)) n++;
+    return `${type}_${n}`;
+  }
+  /** Copies of `src` with new ids, `off` metres down and right (not yet on the canvas). */
+  copiesOf(src, off = 0) {
+    const ids = [];
+    return src.map((r) => { const id = this.newId(r.type, ids); ids.push(id); return { id, type: r.type, x: snap(r.x + off), y: snap(r.y + off), w: r.w, h: r.h }; });
+  }
+  /** Number the rooms of each type 0, 1, 2 ... in their present order, as the later
+   *  stages name them (living_0, bedroom_0, bedroom_1, ...). Returns true when an id changed. */
+  canonicalIds() {
+    const num = (id) => { const n = Number(String(id).split("_").pop()); return Number.isFinite(n) ? n : 1e9; };
+    const byType = new Map();
+    this.rooms.forEach((r, i) => { if (!byType.has(r.type)) byType.set(r.type, []); byType.get(r.type).push([num(r.id), i, r]); });
+    const rename = new Map();
+    for (const [type, list] of byType) list.sort((a, b) => a[0] - b[0] || a[1] - b[1]).forEach(([, , r], k) => { const id = `${type}_${k}`; if (id !== r.id) rename.set(r.id, id); });
+    if (!rename.size) return false;
+    for (const r of this.rooms) if (rename.has(r.id)) r.id = rename.get(r.id);
+    this.selected = new Set([...this.selected].map((id) => rename.get(id) || id));
+    this.changed();
+    return true;
+  }
 
   addRoom(type, at = null) {
     if (!this.opts.allowAdd) return null;
@@ -296,7 +320,7 @@ export class GeometryCanvas {
   duplicate() { const sel = this.selectedRooms(); if (sel.length && this.opts.allowClipboard) this.placeCopies(sel, PASTE_STEP_M); }
   placeCopies(src, off) {
     this.record();
-    const made = src.map((r) => ({ id: this.newId(r.type), type: r.type, x: snap(r.x + off), y: snap(r.y + off), w: r.w, h: r.h }));
+    const made = this.copiesOf(src, off);
     this.rooms.push(...made);
     this.selected = new Set(made.map((r) => r.id));
     this.autoCentre = false;
@@ -341,6 +365,9 @@ export class GeometryCanvas {
     }
     return [null, new Set()];
   }
+
+  /** Ctrl (⌘ on a Mac) held where copies are allowed: dragging a room copies it. */
+  copyKey(e) { return this.opts.allowClipboard && (MAC ? e.metaKey : e.ctrlKey); }
 
   cursorFor(edges) {
     const has = (s) => s.every((k) => edges.has(k)) && edges.size === s.length;
@@ -400,6 +427,11 @@ export class GeometryCanvas {
     try { this.cv.setPointerCapture(e.pointerId); } catch { /* synthetic or finished pointer */ }
     const [px, py] = this.local(e), add = e.shiftKey || e.ctrlKey || e.metaKey;
     const [r, edges] = this.hit(px, py, e.pointerType === "touch" ? HANDLE_TOUCH_PX : HANDLE_PX);
+    if (r && this.copyKey(e)) {
+      // decided on the first move: a drag copies, a click toggles the room in the selection
+      this.drag = { mode: "copy", start: [px, py], room: r, before: this.snapshot() };
+      this.draw(); return;
+    }
     if (!r) {
       if (!add) this.selected = new Set();
       this.drag = { mode: "box", start: [px, py] };
@@ -428,12 +460,23 @@ export class GeometryCanvas {
     const [px, py] = this.local(e);
     if (!this.drag) {
       if (this.spaceDown) { this.cv.style.cursor = "grab"; return; }
-      const [r, edges] = this.hit(px, py); this.cv.style.cursor = r ? this.cursorFor(edges) : "default"; return;
+      const [r, edges] = this.hit(px, py); this.cv.style.cursor = r ? (this.copyKey(e) ? "copy" : this.cursorFor(edges)) : "default"; return;
     }
     if (this.drag.mode === "pan") {
       this.pan = [this.drag.pan0[0] + px - this.drag.start[0], this.drag.pan0[1] + py - this.drag.start[1]];
       this.autoCentre = false;
       this.draw(); return;
+    }
+    if (this.drag.mode === "copy") {
+      if (Math.hypot(px - this.drag.start[0], py - this.drag.start[1]) < 4) return;
+      // copies of the selection (or of this room when it is not in it) start where they are and follow the pointer
+      const { room, start, before } = this.drag;
+      const made = this.copiesOf(this.selected.has(room.id) ? this.selectedRooms() : [room]);
+      this.rooms.push(...made);
+      this.selected = new Set(made.map((q) => q.id));
+      const box = [Math.min(...made.map((q) => q.x)), Math.min(...made.map((q) => q.y)), Math.max(...made.map((q) => q.x + q.w)), Math.max(...made.map((q) => q.y + q.h))];
+      this.drag = { mode: "move", start, origs: new Map(made.map((q) => [q.id, [q.x, q.y]])), rooms: made, box, before, collapse: null };
+      this.cv.style.cursor = "copy";
     }
     const s = this.pxPerM, dx = (px - this.drag.start[0]) / s, dy = (py - this.drag.start[1]) / s;
     if (this.drag.mode === "box") { this.box = [this.drag.start[0], this.drag.start[1], px, py]; this.draw(); return; }
@@ -474,6 +517,11 @@ export class GeometryCanvas {
     if (e && e.pointerType === "touch" && this.touchUp(e)) return;
     if (!this.drag) return;
     if (this.drag.mode === "pan") { this.drag = null; this.cv.style.cursor = this.spaceDown ? "grab" : "default"; return; }
+    if (this.drag.mode === "copy") {         // Ctrl + click: the room joins or leaves the selection
+      const id = this.drag.room.id;
+      if (this.selected.has(id)) this.selected.delete(id); else this.selected.add(id);
+      this.drag = null; this.changed(); return;
+    }
     if (this.drag.mode === "box" && this.box) {
       const [a, b, c, d] = this.box, bx0 = Math.min(a, c), bx1 = Math.max(a, c), by0 = Math.min(b, d), by1 = Math.max(b, d);
       if (bx1 - bx0 > 3 || by1 - by0 > 3) {
@@ -497,8 +545,8 @@ export class GeometryCanvas {
   fmtLen(v) { return this.units === "m" ? v.toFixed(1) : (v * FT_PER_M).toFixed(1); }
 
   hintText(stepTxt) {
-    if (COARSE()) return `dots every ${stepTxt} · pinch to zoom and pan`;
-    return `dots every ${stepTxt} · wheel to zoom · middle-drag or Space + drag to pan · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · ${MOD_KEY}+Z undo · Alt: no snapping`;
+    if (COARSE()) return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}pinch to zoom and pan`;
+    return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}wheel to zoom · middle-drag or Space + drag to pan · ${MOD_KEY} + drag copies · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · ${MOD_KEY}+Z undo · Alt: no snapping`;
   }
 
   /** Dot grid (1 m, or 5 m when zoomed far out; 1 ft / 5 ft) and the hint line. */
@@ -506,9 +554,11 @@ export class GeometryCanvas {
     const s = this.pxPerM, [ox, oy] = this.origin();
     const stepM = this.units === "m" ? (s >= 9 ? 1 : 5) : s / FT_PER_M >= 12 ? 1 / FT_PER_M : 5 / FT_PER_M;
     const sp = stepM * s;
-    ctx.fillStyle = P.a("ink3", alpha);
-    const x0 = ox - Math.ceil(ox / sp) * sp, y0 = oy - Math.ceil(oy / sp) * sp;
-    for (let x = x0; x <= w; x += sp) for (let y = y0; y <= H; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 2 * Math.PI); ctx.fill(); }
+    if (this.gridOn) {
+      ctx.fillStyle = P.a("ink3", alpha);
+      const x0 = ox - Math.ceil(ox / sp) * sp, y0 = oy - Math.ceil(oy / sp) * sp;
+      for (let x = x0; x <= w; x += sp) for (let y = y0; y <= H; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 2 * Math.PI); ctx.fill(); }
+    }
     ctx.font = `9px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.textBaseline = "middle";
     const stepTxt = this.units === "m" ? `${stepM} m` : stepM < 1 ? "1 ft" : "5 ft";
     ctx.fillText(this.hintText(stepTxt), 6, H - 10);
@@ -550,11 +600,11 @@ export class GeometryCanvas {
       ctx.fillRect(cx - 3, cy - 3, 6, 6); ctx.strokeRect(cx - 3, cy - 3, 6, 6);
     }
   }
-  /** Dashed accent lines along the edges or centres that snapped together. */
+  /** Light grey dashes along the edges or centres that snapped together. */
   drawGuides(ctx, P) {
     if (!this.guides.length) return;
     ctx.save();
-    ctx.strokeStyle = P.accent; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = P.a("ink3", 0.55); ctx.lineWidth = 0.75; ctx.setLineDash([3, 4]);
     const ext = 0.4;
     for (const g of this.guides) {
       ctx.beginPath();

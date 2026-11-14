@@ -95,7 +95,8 @@ export function mountArea(body, { store, runtime, goto }) {
   const bUndo = h("button", { title: `Undo (${MOD_KEY}+Z)`, "aria-label": "Undo", disabled: true, on: { click: () => geom.undo() } }, "↶");
   const bRedo = h("button", { title: `Redo (${MOD_KEY}+Shift+Z)`, "aria-label": "Redo", disabled: true, on: { click: () => geom.redo() } }, "↷");
   const bSnap = h("button.snap" + (geom.snapOn ? ".on" : ""), { title: "Snap edges and centres to the other rooms (hold Alt to place freely)", "aria-pressed": String(geom.snapOn), on: { click: () => { geom.setSnap(!geom.snapOn); bSnap.classList.toggle("on", geom.snapOn); bSnap.setAttribute("aria-pressed", String(geom.snapOn)); } } }, "Snap");
-  const editCtl = h("div.zoom-ctl.edit-ctl", { role: "group", "aria-label": "Edit" }, bUndo, bRedo, bSnap);
+  const bGrid = h("button.snap" + (geom.gridOn ? ".on" : ""), { title: "Show or hide the dotted grid", "aria-pressed": String(geom.gridOn), on: { click: () => { geom.setGrid(!geom.gridOn); bGrid.classList.toggle("on", geom.gridOn); bGrid.setAttribute("aria-pressed", String(geom.gridOn)); } } }, "Grid");
+  const editCtl = h("div.zoom-ctl.edit-ctl", { role: "group", "aria-label": "Edit" }, bUndo, bRedo, bSnap, bGrid);
   geom.onHistory = () => { bUndo.disabled = !geom.canUndo(); bRedo.disabled = !geom.canRedo(); };
   // units and zoom sit in the draw panel; on phones they move up next to the mode pill
   const drawCtl = h("div.draw-ctl", editCtl, h("div.mode-pill", um, uf), zoomCtl);
@@ -149,8 +150,11 @@ export function mountArea(body, { store, runtime, goto }) {
   }
 
   function useDrawnLayout() {
+    if (!geom.rooms.length) return;
+    // the later stages name rooms living_0, bedroom_0, bedroom_1 ...: rooms drawn after a delete or
+    // a paste (bedroom_2 with no bedroom_1) take those names, or Stage 3 cannot find them
+    geom.canonicalIds();
     const rooms = geom.rooms;
-    if (!rooms.length) return;
     const units = pg().units, scale = unitScaleToM(units, pg().px_per_m);
     let totalUnits = 0;
     const out = rooms.map((r) => {

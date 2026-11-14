@@ -114,15 +114,21 @@ let glide = null;
 function glideTo(left) {
   if (glide) cancelAnimationFrame(glide.raf);
   const from = strip.scrollLeft, to = Math.max(0, Math.min(left, strip.scrollWidth - strip.clientWidth)), dist = to - from;
+  if (Math.abs(dist) < 2) { strip.scrollLeft = to; return; }
+  // when the system asks for less motion (Windows: Animation effects off) the glide is short
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  if (Math.abs(dist) < 2 || reduce) { strip.scrollLeft = to; return; }
-  const dur = Math.min(1700, 850 + Math.abs(dist) * 0.3), t0 = performance.now();
+  const dur = reduce ? 420 : Math.min(1700, 850 + Math.abs(dist) * 0.3);
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   const snap = strip.style.scrollSnapType;
   strip.style.scrollSnapType = "none";              // phone layout snaps; let the glide run first
   const stop = () => { if (!glide) return; cancelAnimationFrame(glide.raf); glide = null; strip.style.scrollSnapType = snap; };
+  // the clock moves at most one frame (34 ms) at a time: work that holds up the page, such
+  // as building the next stage, pauses the glide instead of skipping it
+  let elapsed = 0, last = null;
   const step = (now) => {
-    const t = Math.min(1, (now - t0) / dur);
+    if (last != null) elapsed += Math.min(now - last, 34);
+    last = now;
+    const t = Math.min(1, elapsed / dur);
     strip.scrollLeft = from + dist * ease(t);
     if (t < 1) glide.raf = requestAnimationFrame(step); else stop();
   };

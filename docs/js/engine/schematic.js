@@ -233,6 +233,8 @@ export function contactPass(rects, edges, maxGap, tol, record = null) {
   if (record && movedAny) record();
 }
 
+// `facades`: balcony id -> [anchor room id, side]; side "auto" (no side from Stage 3) tries
+// the anchor's sides from the most outward one.
 export function glueBalconies(rects, facades, tol) {
   const byId = new Map(rects.map((r) => [r.room_id, r]));
   const indoor = rects.filter((r) => !OUTDOOR_TYPES.has(rtype(r)));
@@ -243,13 +245,14 @@ export function glueBalconies(rects, facades, tol) {
     if (!OUTDOOR_TYPES.has(rtype(b))) continue;
     const [aid, side0] = facades.get(b.room_id) || [null, null];
     const a = byId.get(aid);
-    if (!a || !["N", "S", "E", "W"].includes(side0)) { placed.push(b); continue; }
+    if (!a || !["N", "S", "E", "W", "auto"].includes(side0)) { placed.push(b); continue; }
     const [ax0, ay0, ax1, ay1] = bounds(a);
     const obstacles = [...indoor.filter((r) => r !== a), ...placed];
     const long_ = Math.max(b.w, b.h), short_ = Math.min(b.w, b.h);
     const dx = a.cx - gcx, dy = a.cy - gcy;
     const outward = { N: -dy, S: dy, W: -dx, E: dx };
-    const sides = [side0, ...sortBy(["N", "S", "E", "W"].filter((sd) => sd !== side0), (sd) => [-outward[sd]])];
+    const sides = side0 === "auto" ? sortBy(["N", "S", "E", "W"], (sd) => [-outward[sd]]) : [side0, ...sortBy(["N", "S", "E", "W"].filter((sd) => sd !== side0), (sd) => [-outward[sd]])];
+    const first = sides[0];
     const candidates = (side) => {
       const out = [];
       const horizontal = side === "N" || side === "S";
@@ -291,10 +294,10 @@ export function glueBalconies(rects, facades, tol) {
         if (!best || cmpKeys(key, best[0]) < 0) best = [key, d, c, bw, bh, side];
         if (d <= tol && rank === 0) break;
       }
-      if (best && best[1] <= tol && best[5] === side0) break;
+      if (best && best[1] <= tol && best[5] === first) break;
     }
     let c, bw, bh, side, d;
-    if (!best) { [c, bw, bh] = candidates(side0)[0]; side = side0; d = 0; }
+    if (!best) { [c, bw, bh] = candidates(first)[0]; side = first; d = 0; }
     else [, d, c, bw, bh, side] = best;
     const [nx, ny] = SIDE_NORMAL[side];
     c = [c[0] + nx * d, c[1] + ny * d, c[2] + nx * d, c[3] + ny * d];
@@ -667,6 +670,19 @@ const snapshot = (shapes, kind, morph = 1) => shapes.map((s) => {
   return d;
 });
 
+/** The room a balcony without a Stage 3 façade hangs on: a living room, bedroom or kitchen it
+ *  connects to (in that order), else the living room, else the largest indoor room. */
+function balconyAnchorFallback(bid, rooms, edges) {
+  const byId = new Map(rooms.map((r) => [r.room_id, r]));
+  const prio = { living: 0, bedroom: 1, kitchen: 2 };
+  const linked = edges.map((e) => (e.source === bid ? e.target : e.target === bid ? e.source : null)).filter((id) => byId.has(id) && String(byId.get(id).room_type) in prio);
+  if (linked.length) return sortBy(linked, (id) => [prio[String(byId.get(id).room_type)], id])[0];
+  const indoor = rooms.filter((r) => !OUTDOOR_TYPES.has(String(r.room_type)));
+  const living = indoor.find((r) => r.room_type === "living");
+  if (living) return living.room_id;
+  return indoor.length ? sortBy(indoor, (r) => [-Number(r.area || 0), r.room_id])[0].room_id : null;
+}
+
 /** Full synthesis for one plan; frames[frames.length - 1] is the finished plan. */
 export function synthesize(schematic, alignment, boxW, boxH, unitsPerM = 1.0, wwrByType = null) {
   const syn = { metre: 1, box: [0, 0, 600, 600], rects: [], circles: [], walls: [], openings: [], furniture: [], removed: [], frames: [], phases: [] };
@@ -677,6 +693,13 @@ export function synthesize(schematic, alignment, boxW, boxH, unitsPerM = 1.0, ww
   const s3 = new Map((conn.nodes || []).filter((n) => !n.is_direction).map((n) => [n.id, n]));
   let edges = [...(schematic.edges || [])];
   const facades = new Map((conn.nodes || []).filter((n) => n.facade && n.anchor).map((n) => [n.id, [n.anchor, n.facade]]));
+  // a balcony that Stage 3 did not place (it knew the room by another name: sessions from
+  // drawings with renumbered rooms) hangs on the room it connects to, else on the living room
+  for (const r of rooms) {
+    if (!OUTDOOR_TYPES.has(String(r.room_type)) || facades.has(r.room_id)) continue;
+    const anchor = balconyAnchorFallback(r.room_id, rooms, edges);
+    if (anchor) facades.set(r.room_id, [anchor, "auto"]);
+  }
 
   const areaScale = computeAreaScale(rooms, boxW, boxH, 0.40);
   const ratios = rooms.filter((r) => r.area_m2 && Number(r.area_m2) > 0 && Number(r.area || 0) > 0).map((r) => Math.sqrt(Number(r.area) / Number(r.area_m2)));
