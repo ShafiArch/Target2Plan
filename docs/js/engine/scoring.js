@@ -169,7 +169,7 @@ export const roomOrder = (rooms) =>
   rooms.map((_, i) => i).sort((i, j) => TYPE_ORDER[rooms[i].type] - TYPE_ORDER[rooms[j].type] || rooms[j].area - rooms[i].area || i - j);
 
 export function roomFeatures(rooms) {
-  // float32, like the desktop's np.float32 feature matrix
+  // float32, like the prototype's np.float32 feature matrix
   const tot = pySum(rooms.map((r) => r.area));
   const X = new Float32Array(rooms.length * 11);
   rooms.forEach((r, i) => {

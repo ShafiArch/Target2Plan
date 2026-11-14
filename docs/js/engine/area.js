@@ -1,5 +1,5 @@
 // area.js: Stage 1 pipeline (models/area_model.py + area_mock.pack_circles_natural).
-// Same seed → same variations, areas and bubble positions as the desktop app.
+// Same seed → same variations, areas and bubble positions as the Python prototype.
 import { NumpyLegacy, PyRandom } from "./rng.js";
 
 const softmax = (x) => {

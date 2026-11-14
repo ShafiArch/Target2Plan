@@ -1,5 +1,5 @@
 // roomPopup.js: the room card that opens when a room is clicked in a
-// schematic (stages/stage4_schematic._RoomTooltip in the desktop app):
+// schematic (stages/stage4_schematic._RoomTooltip in the prototype):
 // zone, area, aspect ratio, planned WWR, then how the view and acoustic
 // scores come about and whether the room meets them.
 import { h, ZONE_LABELS } from "./common.js";

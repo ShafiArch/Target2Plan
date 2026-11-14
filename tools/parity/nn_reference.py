@@ -1,6 +1,6 @@
-"""Ground truth from the desktop app's own code + PyTorch.
+"""Ground truth from the prototype's own code + PyTorch.
 
-Runs the real checkpoints through the desktop app's model wrappers and
+Runs the real checkpoints through the prototype's model wrappers and
 writes every input and output needed to check the JavaScript port.
 
 usage: python tools/parity/nn_reference.py <repo_root> <out.json>
@@ -126,7 +126,7 @@ for ci, prog in enumerate(programs):
                             greedy=False, temperature=0.8)
     allz = torch.cat([zg, zsamp], 0)
     emb0, logits = forced_logits(zmodel, feats, n, zv_t, zn_t, tgt, pres, cap, allowed, allz)
-    # the desktop's own table builder for the full pool (tables sorted by distance to target)
+    # the prototype's own table builder for the full pool (tables sorted by distance to target)
     tables, pool = zone_model.generate_zone_tables(inp, var, n_samples=80, temperature=0.8, seed=123)
     zone_cases.append({
         "program": prog, "n": n, "present": present, "targets": [tq, ta],

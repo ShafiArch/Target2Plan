@@ -1,4 +1,4 @@
-// stage1.js: Area Distribution. Two modes, as in the desktop app:
+// stage1.js: Area Distribution. Two modes, as in the prototype:
 //   Draw room program (default): rooms drawn on a dot grid become the variation.
 //   Generate area distributions (optional): the area model samples variations from the
 //   room counts and the plan area (room counts, plan geometry and aspect

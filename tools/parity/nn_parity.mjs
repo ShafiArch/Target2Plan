@@ -1,4 +1,4 @@
-// nn_parity.mjs: checks the JavaScript port against the PyTorch / desktop ground truth.
+// nn_parity.mjs: checks the JavaScript port against the PyTorch / prototype ground truth.
 // usage: node tools/parity/nn_parity.mjs <weights_dir> <reference.json>
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -45,7 +45,7 @@ for (const [ci, c] of ref.area.cases.entries()) {
   const da = maxAbs(areasJs, areasPy);
   report("1 Area", `case ${ci}: network μ/logσ + ${vars.length} area variations (seed 42)`,
     `net ${d.toExponential(1)} · room areas ${da.toExponential(1)} m²`, d < 1e-5 && da < 1e-4);
-  // bubble packer fed the desktop's radii. A layout may only differ where two
+  // bubble packer fed the prototype's radii. A layout may only differ where two
   // mirror-image spots are exactly as close to the centre (an exact tie that the
   // last bit of sin/cos decides); every bubble's distance from the centre then
   // still matches as a set up to that choice, so check identical-or-tie.
@@ -62,7 +62,7 @@ for (const [ci, c] of ref.area.cases.entries()) {
       .sort((a, b) => rad(a.py) - rad(b.py))[0];
     if (Math.abs(rad(div.js) - rad(div.py)) < 1e-9) ties++; else bad++;
   });
-  report("1 Area", `case ${ci}: bubble packing (desktop radii)`, `${same}/${c.variations.length} identical, ${ties} mirror tie-break(s)`, bad === 0);
+  report("1 Area", `case ${ci}: bubble packing (prototype radii)`, `${same}/${c.variations.length} identical, ${ties} mirror tie-break(s)`, bad === 0);
 }
 
 // ── Stage 2 ───────────────────────────────────────────────────────────
@@ -93,14 +93,14 @@ for (const [ci, c] of ref.zone.entries()) {
   const greedy = zone.generate({ ...base, B: 1, greedy: true }).zones[0];
   report("2 Zones", `case ${ci}: features + GAT encoder + GRU logits (81 decodes)`, `feat ${dF.toExponential(1)} · enc ${dE.toExponential(1)} · logits ${dL.toExponential(1)}`, dF < 1e-6 && dE < 1e-5 && dL < 1e-4);
   report("2 Zones", `case ${ci}: greedy arrangement`, `${eq(Array.from(greedy), c.greedy) ? "identical" : "differs"} [${Array.from(greedy).map((z) => z + 1).join(" ")}]`, eq(Array.from(greedy), c.greedy));
-  // scores of the desktop's top tables recomputed in JS
+  // scores of the prototype's top tables recomputed in JS
   let dS = 0;
   for (const t of c.tables_head) {
     const z1 = t.zones.map((z) => z + 1);
     const [q, a] = S.evaluate(z1, T.A, T.Q, w);
     dS = Math.max(dS, Math.abs(q - t.computed.qvci), Math.abs(a - t.computed.aqi));
   }
-  report("2 Zones", `case ${ci}: QVCI/AQI of the desktop's 12 cards`, `max |Δ| ${dS.toExponential(1)} (desktop rounds to 4 dp)`, dS < 6e-5);
+  report("2 Zones", `case ${ci}: QVCI/AQI of the prototype's 12 cards`, `max |Δ| ${dS.toExponential(1)} (the prototype rounds to 4 dp)`, dS < 6e-5);
 }
 
 // ── Stage 3 ───────────────────────────────────────────────────────────

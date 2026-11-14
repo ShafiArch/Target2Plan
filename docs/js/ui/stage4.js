@@ -80,7 +80,7 @@ export function mountSchematic(body, { store, goto }) {
       shown = frameIdx < 0 ? syn.frames[syn.frames.length - 1] : syn.frames[Math.min(frameIdx, syn.frames.length - 1)];
       T = paintFrame(ctx, s, syn, shown, w, H, palette(), { showEdges: opt.edges, showWalls: opt.walls, furniture: opt.furn, showCaption: frameIdx >= 0, showCompass: !opt.planOnly, fitDims });
     };
-    // a click on a room opens its card (as in the desktop app); elsewhere it selects the plan
+    // a click on a room opens its card (as in the prototype); elsewhere it selects the plan
     cv.addEventListener("click", (e) => {
       const b = cv.getBoundingClientRect(), room = roomAt(shown, T, e.clientX - b.left, e.clientY - b.top);
       if (!room) return;

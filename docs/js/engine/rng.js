@@ -1,4 +1,4 @@
-// rng.js: seedable random numbers that reproduce the desktop app.
+// rng.js: seedable random numbers that reproduce the Python prototype.
 //
 // PyRandom    : CPython's random.Random (MT19937, seeded by init_by_array),
 //               with random(), uniform(), shuffle(), choice(), randbelow().

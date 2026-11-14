@@ -1,5 +1,5 @@
 // store.js: the session state (one source of truth) and its change events.
-// Field names follow the desktop app's dataclasses so sessions read the same.
+// Field names follow the prototype's dataclasses so sessions read the same.
 
 export const ZONED_TYPES = ["living", "kitchen", "bedroom", "bathroom"];
 export const EXTRA_TYPES = ["balcony"];

@@ -463,7 +463,7 @@ export function buildOpenings(rects, walls, edges, metre, wwrByRoom) {
 // the research geometry library of the Hypergraph project by Ramon Elias
 // Weber, https://github.com/ramonweber/hypergraph (MIT License, Copyright (c)
 // 2024 ramonweber; full text in LICENSE-RGeoLib.txt), carried over from the
-// desktop app's Python port in models/schematic_layout.py. Paper: Weber,
+// prototype's Python port in models/schematic_layout.py. Paper: Weber,
 // Mueller & Reinhart, Nature Communications 15, 8327 (2024),
 // https://doi.org/10.1038/s41467-024-52506-z
 const innerRect = (r, metre, inset = 0.08) => { const [x0, y0, x1, y1] = bounds(r), d = inset * metre; return [x0 + d, y0 + d, x1 - d, y1 - d]; };

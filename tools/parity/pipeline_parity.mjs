@@ -1,4 +1,4 @@
-// pipeline_parity.mjs: checks the web engine (stages 2 to 4) against the desktop pipeline dump.
+// pipeline_parity.mjs: checks the web engine (stages 2 to 4) against the prototype's pipeline dump.
 // usage: node tools/parity/pipeline_parity.mjs <pipeline.json>
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 for (const c of dump.cases) {
   const inputs = c.inputs;
-  // ── Stage 2: table building for the desktop's arrangements ──
+  // ── Stage 2: table building for the prototype's arrangements ──
   const ps = new PlanSetup(inputs, c.variation);
   let dT = 0, fieldsOk = true;
   for (const t of c.tables) {
@@ -40,7 +40,7 @@ for (const c of dump.cases) {
   }
   report(c.name, `Stage 2: ${c.tables.length} cards rebuilt (metrics, rooms, reachable range)`, `max |Δ| ${dT.toExponential(1)}`, dT <= 1.01e-4 && fieldsOk);
 
-  // ── Stage 3: edges + layout, from the desktop's zone tables ──
+  // ── Stage 3: edges + layout, from the prototype's zone tables ──
   const pg = inputs.plan_geometry;
   const sel = c.tables.map((t) => t.table_index);
   const graphs = generateConnectivityGraphs(conn, c.tables, sel, { planWidth: pg.width, planHeight: pg.height, roomCounts: inputs.room_counts });
@@ -54,7 +54,7 @@ for (const c of dump.cases) {
   });
   report(c.name, `Stage 3: ${graphs.length} graphs (edges, relocation, node positions)`, `edges ${edgesOk ? "identical" : "differ"} · pos ${dPos.toExponential(1)}`, edgesOk && relocOk && dPos < 1e-9);
 
-  // ── Stage 4: synthesis from the desktop's graphs ──
+  // ── Stage 4: synthesis from the prototype's graphs ──
   const sch = makeSchematics(c.tables, c.graphs, c.graphs.map((g) => g.meta.plan_index), inputs);
   let dR = 0, wallsOk = true, openOk = true, furnOk = true, framesOk = true, dW = 0;
   sch.forEach((s, i) => {
