@@ -1,0 +1,90 @@
+{
+ "tensors": {
+  "fc1.weight": {
+   "offset": 0,
+   "shape": [
+    128,
+    6
+   ]
+  },
+  "fc1.bias": {
+   "offset": 768,
+   "shape": [
+    128
+   ]
+  },
+  "fc2.weight": {
+   "offset": 896,
+   "shape": [
+    128,
+    128
+   ]
+  },
+  "fc2.bias": {
+   "offset": 17280,
+   "shape": [
+    128
+   ]
+  },
+  "to_latent.weight": {
+   "offset": 17408,
+   "shape": [
+    16,
+    128
+   ]
+  },
+  "to_latent.bias": {
+   "offset": 19456,
+   "shape": [
+    16
+   ]
+  },
+  "mu_head.weight": {
+   "offset": 19472,
+   "shape": [
+    6,
+    16
+   ]
+  },
+  "mu_head.bias": {
+   "offset": 19568,
+   "shape": [
+    6
+   ]
+  },
+  "logsig_head.weight": {
+   "offset": 19574,
+   "shape": [
+    6,
+    16
+   ]
+  },
+  "logsig_head.bias": {
+   "offset": 19670,
+   "shape": [
+    6
+   ]
+  }
+ },
+ "meta": {
+  "vocab": [
+   "balcony",
+   "bathroom",
+   "bedroom",
+   "kitchen",
+   "living",
+   "storage"
+  ],
+  "config": {
+   "HIDDEN_DIM": 128,
+   "LATENT_DIM": 16,
+   "DROPOUT": 0.1,
+   "MC_SAMPLES": 8,
+   "LOGSIG_MIN": -5.0,
+   "LOGSIG_MAX": 1.0
+  },
+  "epoch": 135,
+  "best_val": 1.3386319535119193
+ },
+ "count": 19676
+}

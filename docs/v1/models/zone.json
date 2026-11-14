@@ -1,0 +1,289 @@
+{
+ "tensors": {
+  "proj.weight": {
+   "offset": 0,
+   "shape": [
+    128,
+    29
+   ]
+  },
+  "proj.bias": {
+   "offset": 3712,
+   "shape": [
+    128
+   ]
+  },
+  "layers.0.heads.0.W.weight": {
+   "offset": 3840,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.0.heads.0.a.weight": {
+   "offset": 7936,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.0.heads.1.W.weight": {
+   "offset": 8000,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.0.heads.1.a.weight": {
+   "offset": 12096,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.0.heads.2.W.weight": {
+   "offset": 12160,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.0.heads.2.a.weight": {
+   "offset": 16256,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.0.heads.3.W.weight": {
+   "offset": 16320,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.0.heads.3.a.weight": {
+   "offset": 20416,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.0.norm.weight": {
+   "offset": 20480,
+   "shape": [
+    128
+   ]
+  },
+  "layers.0.norm.bias": {
+   "offset": 20608,
+   "shape": [
+    128
+   ]
+  },
+  "layers.1.heads.0.W.weight": {
+   "offset": 20736,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.1.heads.0.a.weight": {
+   "offset": 24832,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.1.heads.1.W.weight": {
+   "offset": 24896,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.1.heads.1.a.weight": {
+   "offset": 28992,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.1.heads.2.W.weight": {
+   "offset": 29056,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.1.heads.2.a.weight": {
+   "offset": 33152,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.1.heads.3.W.weight": {
+   "offset": 33216,
+   "shape": [
+    32,
+    128
+   ]
+  },
+  "layers.1.heads.3.a.weight": {
+   "offset": 37312,
+   "shape": [
+    1,
+    64
+   ]
+  },
+  "layers.1.norm.weight": {
+   "offset": 37376,
+   "shape": [
+    128
+   ]
+  },
+  "layers.1.norm.bias": {
+   "offset": 37504,
+   "shape": [
+    128
+   ]
+  },
+  "gru.weight_ih_l0": {
+   "offset": 37632,
+   "shape": [
+    768,
+    168
+   ]
+  },
+  "gru.weight_hh_l0": {
+   "offset": 166656,
+   "shape": [
+    768,
+    256
+   ]
+  },
+  "gru.bias_ih_l0": {
+   "offset": 363264,
+   "shape": [
+    768
+   ]
+  },
+  "gru.bias_hh_l0": {
+   "offset": 364032,
+   "shape": [
+    768
+   ]
+  },
+  "gru.weight_ih_l1": {
+   "offset": 364800,
+   "shape": [
+    768,
+    256
+   ]
+  },
+  "gru.weight_hh_l1": {
+   "offset": 561408,
+   "shape": [
+    768,
+    256
+   ]
+  },
+  "gru.bias_ih_l1": {
+   "offset": 758016,
+   "shape": [
+    768
+   ]
+  },
+  "gru.bias_hh_l1": {
+   "offset": 758784,
+   "shape": [
+    768
+   ]
+  },
+  "head.0.weight": {
+   "offset": 759552,
+   "shape": [
+    128,
+    256
+   ]
+  },
+  "head.0.bias": {
+   "offset": 792320,
+   "shape": [
+    128
+   ]
+  },
+  "head.3.weight": {
+   "offset": 792448,
+   "shape": [
+    9,
+    128
+   ]
+  },
+  "head.3.bias": {
+   "offset": 793600,
+   "shape": [
+    9
+   ]
+  }
+ },
+ "meta": {
+  "format": "v13",
+  "config": {
+   "ROOM_FEAT_DIM": 11,
+   "CTX_DIM": 31,
+   "GNN_DIM": 128,
+   "GNN_LAYERS": 2,
+   "GNN_HEADS": 4,
+   "GRU_DIM": 256,
+   "GRU_LAYERS": 2,
+   "MAX_ROOMS": 14,
+   "TYPE_ORDER": [
+    "living",
+    "kitchen",
+    "bedroom",
+    "bathroom"
+   ],
+   "capacity_rule": {
+    "corner": [
+     [
+      7,
+      2
+     ],
+     [
+      99,
+      3
+     ]
+    ],
+    "cardinal": [
+     [
+      99,
+      3
+     ]
+    ],
+    "interior": [
+     [
+      7,
+      1
+     ],
+     [
+      99,
+      2
+     ]
+    ]
+   },
+   "interior_bathrooms_only": true
+  },
+  "trained": {
+   "corpus": "corpus_v13_full (16,735 plans, 2,208,969 records, 3 sites/plan)",
+   "epochs": 40,
+   "best_epoch": 36,
+   "val_ce": 1.6152709676885963,
+   "val_acc": 0.3675116689708036,
+   "date": "2026-10-13",
+   "source": "Train_set_34/train_v13/best_model.pt"
+  }
+ },
+ "count": 793609
+}

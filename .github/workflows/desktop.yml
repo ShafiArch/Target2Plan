@@ -8,13 +8,14 @@
 # click "Publish release". Publishing creates the version tag; it starts no
 # build of its own.
 #
-# Any other run (a manual run without the tick, a push to the desktop-app
-# branch) keeps the installers as workflow artifacts to download and try.
+# Any other run (a manual run without the tick, a push to the next branch,
+# where the next version is prepared) keeps the installers as workflow
+# artifacts to download and try.
 name: Desktop app
 
 on:
   push:
-    branches: ["desktop-app"]
+    branches: ["next"]
   workflow_dispatch:
     inputs:
       release:

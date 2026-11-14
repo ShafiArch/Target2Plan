@@ -2,7 +2,9 @@
 // an online visit always gets the current files, and every response is kept
 // in the cache for the next offline start. On install the whole app (pages,
 // scripts, fonts, icons and the trained models) is stored once.
-const CACHE = "target2plan-1.0.0";
+const CACHE = "target2plan-1.1.0";
+// the archived version 1.0 lives in v1/ with its own worker; this one leaves it alone
+const ARCHIVE = new URL("v1/", self.registration.scope).pathname;
 const APP = [
   "./",
   "manifest.webmanifest",
@@ -67,12 +69,13 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith("target2plan-") && k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  if (req.method !== "GET" || new URL(req.url).origin !== self.location.origin) return;
+  const req = e.request, url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith(ARCHIVE)) return;        // version 1.0 (v1/) has its own worker and cache
   e.respondWith(fetch(req).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
     return res;
