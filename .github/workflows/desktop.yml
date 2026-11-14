@@ -1,11 +1,13 @@
 # Builds the Target2Plan desktop app (desktop/, Tauri) for Windows, macOS and
 # Linux. Pushing a version tag (v1.0.0, ...) attaches the installers to a draft
-# GitHub Release; a manual run keeps them as workflow artifacts.
+# GitHub Release; a push to the desktop-app branch or a manual run keeps them
+# as workflow artifacts to download and try.
 name: Desktop app
 
 on:
   push:
     tags: ["v*"]
+    branches: ["desktop-app"]
   workflow_dispatch:
 
 permissions:
