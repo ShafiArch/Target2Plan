@@ -344,7 +344,9 @@ export function mountArea(body, { store, runtime, goto }) {
     drawTools.forEach((el) => el.classList.toggle("hidden", !draw));
     bUse.classList.toggle("hidden", !draw);
     drawCtl.classList.toggle("hidden", !draw);
-    modeHint.textContent = draw ? "Drop rooms on the canvas and size them by dragging an edge or corner; then press Use this layout. The area model is optional." : "Optional: set the room counts and shapes, then let the area model sample area variations from the plan area. You can also draw the rooms yourself.";
+    // drawing explains itself; the optional area model gets a line
+    modeHint.textContent = draw ? "" : "Optional: set the room counts and shapes, then let the area model sample area variations from the plan area. You can also draw the rooms yourself.";
+    modeHint.classList.toggle("hidden", draw);
     if (draw) requestAnimationFrame(() => geom.centre());
   }
   function syncInputs() {

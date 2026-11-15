@@ -115,11 +115,15 @@ export class GeometryCanvas {
     this.cv.addEventListener("pointercancel", (e) => this.up(e));
     this.cv.addEventListener("auxclick", (e) => { if (e.button === 1) e.preventDefault(); });
     this.cv.addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); });   // no autoscroll
-    // wheel (or trackpad pinch) zooms about the pointer
+    // wheel (or trackpad pinch) zooms about the pointer. A mouse wheel turns in notches
+    // of about 20 %: those glide to their zoom over a few frames instead of jumping; a
+    // trackpad's small steps and pinches apply at once, as they come.
     this.cv.addEventListener("wheel", (e) => {
       e.preventDefault();
       const [px, py] = this.local(e), d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
-      this.zoomAt(Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0018)), px, py);
+      const f = Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0018));
+      if (!e.ctrlKey && Math.abs(d) >= 40) this.glideZoom(f, px, py);
+      else { this.stopGlide(); this.zoomAt(f, px, py); }
     }, { passive: false });
     this.cv.addEventListener("keydown", (e) => this.key(e));
     this.cv.addEventListener("keyup", (e) => { if (e.key === " ") { this.spaceDown = false; if (!this.drag) this.cv.style.cursor = "default"; } });
@@ -142,6 +146,7 @@ export class GeometryCanvas {
     for (const [t, fn] of this.docListeners) document.removeEventListener(t, fn);
     this.ro?.disconnect();
     if (this.drawRaf) cancelAnimationFrame(this.drawRaf);
+    this.stopGlide();
   }
 
   /** Draw at the next frame, once however many changes come before it (wheel, pinch and
@@ -200,18 +205,46 @@ export class GeometryCanvas {
   static MIN_PX_PER_M = 6;
   static MAX_PX_PER_M = 160;
   zoomPercent() { return Math.round((this.pxPerM / GeometryCanvas.BASE_PX_PER_M) * 100); }
-  /** Zoom by `factor`, keeping the point under canvas pixel (px, py) in place. */
-  zoomAt(factor, px, py) {
-    const s0 = this.pxPerM, s1 = Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, s0 * factor));
-    if (Math.abs(s1 - s0) < 1e-9) return;
+  static clampZoom(s) { return Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, s)); }
+  /** Set the zoom, keeping the point under canvas pixel (px, py) in place (no drawing). */
+  setZoom(s1, px, py) {
     const [mx, my] = this.toM(px, py);
     this.pxPerM = s1;
     this.pan = [px - mx * s1 - this.pad, py - my * s1 - this.pad];
     this.autoCentre = false;
+  }
+  /** Zoom by `factor`, keeping the point under canvas pixel (px, py) in place. */
+  zoomAt(factor, px, py) {
+    const s0 = this.pxPerM, s1 = GeometryCanvas.clampZoom(s0 * factor);
+    if (Math.abs(s1 - s0) < 1e-9) return;
+    this.setZoom(s1, px, py);
     this.drawSoon();
     this.onZoom?.();
   }
-  zoomBy(factor) { const r = this.cv.getBoundingClientRect(); this.zoomAt(factor, r.width / 2, r.height / 2); }
+  zoomBy(factor) { this.stopGlide(); const r = this.cv.getBoundingClientRect(); this.zoomAt(factor, r.width / 2, r.height / 2); }
+  /** Glide the zoom to `factor` times where it is heading, about canvas pixel (px, py).
+   *  Each frame closes part of the remaining gap on a log scale (time constant 55 ms), so
+   *  a wheel notch settles in about a third of a second, mostly in the first frames, and
+   *  further notches carry on from the zoom being glided to. */
+  glideZoom(factor, px, py) {
+    const g = this.glide || (this.glide = { raf: 0, last: null, target: this.pxPerM });
+    g.target = GeometryCanvas.clampZoom(g.target * factor);
+    g.px = px; g.py = py;
+    if (!g.raf) g.raf = requestAnimationFrame((t) => this.glideStep(t));
+  }
+  glideStep(now) {
+    const g = this.glide;
+    if (!g) return;
+    const dt = g.last == null ? 16.7 : Math.max(0, Math.min(50, now - g.last));
+    g.last = now;
+    const l0 = Math.log(this.pxPerM), l1 = Math.log(g.target);
+    const done = Math.abs(l1 - l0) < 0.003;
+    this.setZoom(done ? g.target : Math.exp(l0 + (l1 - l0) * (1 - Math.exp(-dt / 55))), g.px, g.py);
+    this.draw();                                  // already in a frame: draw now, not at the next one
+    this.onZoom?.();
+    if (done) this.glide = null; else g.raf = requestAnimationFrame((t) => this.glideStep(t));
+  }
+  stopGlide() { if (this.glide) { cancelAnimationFrame(this.glide.raf); this.glide = null; } }
   /** Extent [x0, y0, x1, y1] to fit and centre (the rooms, or the plan outline when there are none). */
   extent() {
     if (!this.rooms.length) return [0, 0, this.planW, this.planH];
@@ -219,6 +252,7 @@ export class GeometryCanvas {
   }
   /** Fit every room (or the plan outline when there are none) in the view. */
   fit() {
+    this.stopGlide();
     const r = this.cv.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return;
     const [x0, y0, x1, y1] = this.extent();
@@ -237,7 +271,7 @@ export class GeometryCanvas {
   }
   setUnits(u) { if (u !== this.units) { this.units = u; this.draw(); } }
   setPlan(wm, hm) { this.planW = Math.max(1, wm); this.planH = Math.max(1, hm); this.draw(); }
-  setScale(px) { this.pxPerM = Math.max(GeometryCanvas.MIN_PX_PER_M, Math.min(GeometryCanvas.MAX_PX_PER_M, px)); this.centre(); this.onZoom?.(); }
+  setScale(px) { this.stopGlide(); this.pxPerM = GeometryCanvas.clampZoom(px); this.centre(); this.onZoom?.(); }
 
   loadSample() {
     if (this.rooms.length) this.record();
@@ -430,6 +464,7 @@ export class GeometryCanvas {
   }
 
   down(e) {
+    this.stopGlide();                 // a press takes over from a zoom still gliding
     if (e.pointerType === "touch" && this.touchDown(e)) return;
     // middle button, or Space + left button, pans the view
     if (e.button === 1 || (e.button === 0 && this.spaceDown)) {
@@ -564,9 +599,11 @@ export class GeometryCanvas {
   fmtArea(a) { return this.units === "m" ? `${a.toFixed(1)} m²` : `${(a * SQFT_PER_M2).toFixed(0)} ft²`; }
   fmtLen(v) { return this.units === "m" ? v.toFixed(1) : (v * FT_PER_M).toFixed(1); }
 
+  // only what nobody would guess: zooming, panning, undo, copy and paste are left out
   hintText(stepTxt) {
-    if (COARSE()) return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}pinch to zoom and pan`;
-    return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}${MOD_KEY} + drag copies · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · Alt: no snapping`;
+    const dots = this.gridOn ? `dots every ${stepTxt}` : "";
+    if (COARSE()) return dots;
+    return [dots, `${MOD_KEY} + drag copies`, "R turns a room", "Alt: no snapping"].filter(Boolean).join(" · ");
   }
 
   /** Dot grid (1 m, or 5 m when zoomed far out; 1 ft / 5 ft) and the hint line. They are
@@ -587,19 +624,23 @@ export class GeometryCanvas {
     if (this.gridOn && sp > 2) {
       const k = b.getTransform?.().a || dpr;
       const T = Math.max(3, Math.round(sp * k));              // tile, in device pixels
-      const tkey = `${T}|${k}|${color}`;
-      if (!this.dots || this.dots.key !== tkey) {
-        const tile = document.createElement("canvas");
+      // patterns are kept by tile size, so zooming back and forth reuses them
+      const tkey = `${T}|${k}|${color}`, pats = this.dotPats || (this.dotPats = new Map());
+      let pat = pats.get(tkey);
+      if (!pat) {
+        const tile = this.dotTile || (this.dotTile = document.createElement("canvas"));
         tile.width = tile.height = T;
         const tc = tile.getContext("2d");
         tc.fillStyle = color; tc.beginPath(); tc.arc(T / 2, T / 2, k, 0, 2 * Math.PI); tc.fill();
-        this.dots = { key: tkey, pat: b.createPattern(tile, "repeat") };
+        pat = b.createPattern(tile, "repeat");
+        pats.set(tkey, pat);
+        if (pats.size > 48) pats.delete(pats.keys().next().value);
       }
       // one tile per grid step, its dot on the grid points (the origin plus whole steps)
       const f = sp / T, tx = ((((ox - sp / 2) % sp) + sp) % sp) - sp, ty = ((((oy - sp / 2) % sp) + sp) % sp) - sp;
       b.save();
       b.translate(tx, ty); b.scale(f, f);
-      b.fillStyle = this.dots.pat;
+      b.fillStyle = pat;
       b.fillRect(0, 0, (w - tx) / f + T, (H - ty) / f + T);
       b.restore();
     }

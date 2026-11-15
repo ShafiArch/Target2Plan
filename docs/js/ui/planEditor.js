@@ -68,6 +68,7 @@ class PlanCanvas extends GeometryCanvas {
   insets() { return this.ed.insets?.() || { l: 0, t: 0, r: 0, b: 0 }; }
   /** Fit the plan in the free part of the canvas at `f` of the full fit. */
   fit(f = 1) {
+    this.stopGlide();
     const r = this.cv.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return;
     const [x0, y0, x1, y1] = this.extent(), m = this.fitMargin, i = this.insets();
@@ -87,9 +88,10 @@ class PlanCanvas extends GeometryCanvas {
     this.pan = [cx - ((x0 + x1) / 2) * s - this.pad, cy - ((y0 + y1) / 2) * s - this.pad];
     this.draw();
   }
+  // only what nobody would guess (dragging, nudging, zoom and undo are left out)
   hintText() {
-    if (COARSE()) return "drag a room or an edge · pinch to zoom and pan";
-    return `drag a room or an edge · arrow keys nudge · R turns a room · ${MOD_KEY}+D: door flip (select both rooms) · Alt: no snapping`;
+    if (COARSE()) return "";
+    return `R turns a room · ${MOD_KEY}+D: door flip (select both rooms) · Alt: no snapping`;
   }
   draw() {
     const key = [...this.selected].sort().join("|");
