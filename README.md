@@ -9,7 +9,7 @@ Target2Plan was developed as Shafiul Islam's thesis in the Master of Science in 
 
 ## Use it
 
-* **Online:** **https://shafiarch.github.io/Target2Plan/**, nothing to install. Version 1.0, as first released, stays online at https://shafiarch.github.io/Target2Plan/v1/.
+* **Online:** **https://shafiarch.github.io/Target2Plan/**, nothing to install. ## Version 1.0, as first released, stays online at https://shafiarch.github.io/Target2Plan/v1/.
 * **As an app from the browser:** open the site in Chrome or Edge and click **Install app** in the header (or the install icon in the address bar); in Safari on a Mac, choose File, Add to Dock. It then opens in its own window and works offline.
 * **Desktop app for Windows, macOS and Linux:** download the installer from the [latest release](https://github.com/ShafiArch/Target2Plan/releases/latest): the `.exe` (or `.msi`) for Windows, the `.dmg` for macOS (Apple silicon and Intel), the `.AppImage` or `.deb` for Linux.
 
