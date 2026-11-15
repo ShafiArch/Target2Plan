@@ -114,9 +114,11 @@ export function scoreLayout(rooms, roomById, walls, metre, inputs, targets = nul
  * openings, furniture, frames that replay walls, doors, windows and furniture)
  * plus the as-drawn scores. `base` is the plan's original synthesis (its
  * `metre` keeps the drawing scale of the other plans); `doors` holds the doors
- * turned in the editor ({doorKey: {end, into}}, see buildOpenings).
+ * turned in the editor ({doorKey: {end, into}}, see buildOpenings). `replay`
+ * false builds the finished plan alone, without the frames that replay its
+ * synthesis (the editor's live view, rebuilt on every move).
  */
-export function buildLayout(schematic, rooms, base, inputs, doors = null) {
+export function buildLayout(schematic, rooms, base, inputs, doors = null, replay = true) {
   const metre = base.metre || 1;
   const records = new Map((schematic.orig?.rooms || schematic.rooms || []).map((r) => [r.room_id, r]));
   const present = new Set(rooms.map((r) => r.id));
@@ -134,9 +136,11 @@ export function buildLayout(schematic, rooms, base, inputs, doors = null) {
   };
   const phase = (label) => phases.push([frames.length, label]);
   phase("Edited plan");
-  push("Edited plan", rects, "rect", { hold: 6 });
-  recordPlanParts(parts, rects, push, phase);
-  push("Edited plan", rects, "rect", { walls: 1, nOpen: parts.openings.length, nFurn: parts.furniture.length, hold: 12 });
+  if (replay) {
+    push("Edited plan", rects, "rect", { hold: 6 });
+    recordPlanParts(parts, rects, push, phase);
+  }
+  push("Edited plan", rects, "rect", { walls: 1, nOpen: parts.openings.length, nFurn: parts.furniture.length, hold: replay ? 12 : 1 });
   const xs = rects.flatMap((r) => [r.cx - r.w / 2, r.cx + r.w / 2]), ys = rects.flatMap((r) => [r.cy - r.h / 2, r.cy + r.h / 2]);
   const box = rects.length ? [Math.min(...xs), Math.min(...ys), Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)] : [0, 0, 1, 1];
   return {

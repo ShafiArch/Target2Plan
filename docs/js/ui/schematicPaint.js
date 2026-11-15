@@ -124,11 +124,13 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
   if (showEdges) {
     ctx.layer?.("A-ANNO-EDGE");   // CAD layer of what follows (planExport.js records the drawing; a canvas has no layer())
     ctx.strokeStyle = P.a("ink3", 0.43); ctx.lineWidth = 0.7; ctx.setLineDash([1.4, 1.4]);
+    ctx.beginPath();
     for (const e of schematic.edges || []) {
       const a = byId.get(e.source), b = byId.get(e.target);
       if (!a || !b) continue;
-      ctx.beginPath(); ctx.moveTo(TX(a.cx), TY(a.cy)); ctx.lineTo(TX(b.cx), TY(b.cy)); ctx.stroke();
+      ctx.moveTo(TX(a.cx), TY(a.cy)); ctx.lineTo(TX(b.cx), TY(b.cy));
     }
+    ctx.stroke();
     ctx.setLineDash([]);
   }
 
@@ -198,75 +200,96 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
       if (cur < hi) segs.push([cur, hi]);
       for (const [a, b] of segs) {
         if (b - a <= 1e-6) continue;
-        ctx.beginPath();
         if (horizontal) { ctx.moveTo(TX(a), TY(cst)); ctx.lineTo(TX(b), TY(cst)); } else { ctx.moveTo(TX(cst), TY(a)); ctx.lineTo(TX(cst), TY(b)); }
-        ctx.stroke();
       }
     };
+    // Each kind of line is one path, drawn with one call however many walls,
+    // doors or pieces of furniture there are (the plan editor redraws every frame).
     ctx.layer?.("A-WALL");
     ctx.fillStyle = P.surface;
+    ctx.beginPath();
     const pieceLists = bands.map(([rect, wl]) => {
       const pl = pieces(wl, rect);
-      for (const [a, b, c, d] of pl[0]) ctx.fillRect(TX(a), TY(b), (c - a) * scale, (d - b) * scale);
+      for (const [a, b, c, d] of pl[0]) ctx.rect(TX(a), TY(b), (c - a) * scale, (d - b) * scale);
       return pl;
     });
+    ctx.fill();
     ctx.strokeStyle = P.ink; ctx.lineWidth = Math.max(0.6, (0.9 * scale) / 2);
+    ctx.beginPath();
     bands.forEach(([, wl], idx) => {
       const horizontal = Math.abs(wl.out[1]) > 0, [pcs, gaps] = pieceLists[idx];
       for (const [a, b, c, d] of pcs) {
         if (horizontal) {
           clipped(a, b, c, b, true, idx); clipped(a, d, c, d, true, idx);
-          for (const g of gaps.flat()) if (Math.abs(g - a) < 1e-6 || Math.abs(g - c) < 1e-6) { ctx.beginPath(); ctx.moveTo(TX(g), TY(b)); ctx.lineTo(TX(g), TY(d)); ctx.stroke(); }
+          for (const g of gaps.flat()) if (Math.abs(g - a) < 1e-6 || Math.abs(g - c) < 1e-6) { ctx.moveTo(TX(g), TY(b)); ctx.lineTo(TX(g), TY(d)); }
         } else {
           clipped(a, b, a, d, false, idx); clipped(c, b, c, d, false, idx);
-          for (const g of gaps.flat()) if (Math.abs(g - b) < 1e-6 || Math.abs(g - d) < 1e-6) { ctx.beginPath(); ctx.moveTo(TX(a), TY(g)); ctx.lineTo(TX(c), TY(g)); ctx.stroke(); }
+          for (const g of gaps.flat()) if (Math.abs(g - b) < 1e-6 || Math.abs(g - d) < 1e-6) { ctx.moveTo(TX(a), TY(g)); ctx.lineTo(TX(c), TY(g)); }
         }
       }
     });
-    if (wallsFrac >= 0.5) {
+    ctx.stroke();
+    if (wallsFrac >= 0.5 && rails.length) {
       ctx.layer?.("A-WALL-RAIL");
       ctx.strokeStyle = fill ? P.ink2 : lightLine; ctx.lineWidth = Math.max(0.5, (0.6 * scale) / 2);
-      for (const wl of rails) { ctx.beginPath(); ctx.moveTo(TX(wl.x1), TY(wl.y1)); ctx.lineTo(TX(wl.x2), TY(wl.y2)); ctx.stroke(); }
+      ctx.beginPath();
+      for (const wl of rails) { ctx.moveTo(TX(wl.x1), TY(wl.y1)); ctx.lineTo(TX(wl.x2), TY(wl.y2)); }
+      ctx.stroke();
     }
     // 4. openings: windows (three hairlines), doors (leaf + swing), entrance marker.
     // Thin, lighter ink so the openings read as hairlines next to the walls.
     const pxm = metre * scale;
     const winW = Math.max(0.3, pxm * 0.005), leafW = Math.max(0.4, pxm * 0.008), swingW = Math.max(0.3, pxm * 0.005);
-    for (const op of opens) {
-      const [nx, ny] = op.wall.out;
-      if (op.kind === "window") {
-        ctx.layer?.("A-GLAZ");
-        ctx.strokeStyle = P.a("ink2", 0.8); ctx.lineWidth = winW;
-        for (const f of [0, 0.5, 1]) {
-          const off = tExt * f;
-          ctx.beginPath(); ctx.moveTo(TX(op.x1 + nx * off), TY(op.y1 + ny * off)); ctx.lineTo(TX(op.x2 + nx * off), TY(op.y2 + ny * off)); ctx.stroke();
-        }
-      } else if (op.kind === "door" || op.kind === "balcony_door" || op.kind === "entry") {
-        const [hx, hy] = op.hinge;
-        const atStart = Math.abs(op.x1 - hx) < 1e-6 && Math.abs(op.y1 - hy) < 1e-6;
-        const [fx, fy] = atStart ? [op.x2, op.y2] : [op.x1, op.y1];
-        const dw = op.width, into = byId.get(op.into);
-        const [ix, iy] = into ? [into.cx, into.cy] : [hx - nx, hy - ny];
-        const ux = (fx - hx) / dw, uy = (fy - hy) / dw;
-        let px = -uy, py = ux;
-        if ((ix - hx) * px + (iy - hy) * py < 0) { px = uy; py = -ux; }
-        ctx.layer?.("A-DOOR");
-        ctx.strokeStyle = P.ink2; ctx.lineWidth = leafW;
-        ctx.beginPath(); ctx.moveTo(TX(hx), TY(hy)); ctx.lineTo(TX(hx + px * dw), TY(hy + py * dw)); ctx.stroke();
-        const a0 = Math.atan2(py, px), a1 = Math.atan2(uy, ux);
-        const delta = ((a1 - a0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
-        ctx.strokeStyle = P.a("ink3", 0.85); ctx.lineWidth = swingW;
-        ctx.beginPath(); ctx.arc(TX(hx), TY(hy), dw * scale, a0, a0 + delta, delta < 0); ctx.stroke();
-        if (op.kind === "entry") {
-          const mx = (hx + fx) / 2, my = (hy + fy) / 2, s_ = 0.35 * metre;
-          ctx.layer?.("A-ENTRY");
-          ctx.fillStyle = fill ? P.accent : P.ink; ctx.beginPath();
-          ctx.moveTo(TX(mx + nx * (tExt + 0.05 * metre)), TY(my + ny * (tExt + 0.05 * metre)));
-          ctx.lineTo(TX(mx + nx * (tExt + s_) + ux * s_ * 0.6), TY(my + ny * (tExt + s_) + uy * s_ * 0.6));
-          ctx.lineTo(TX(mx + nx * (tExt + s_) - ux * s_ * 0.6), TY(my + ny * (tExt + s_) - uy * s_ * 0.6));
-          ctx.closePath(); ctx.fill();
-        }
+    const wins = opens.filter((op) => op.kind === "window");
+    if (wins.length) {
+      ctx.layer?.("A-GLAZ");
+      ctx.strokeStyle = P.a("ink2", 0.8); ctx.lineWidth = winW;
+      ctx.beginPath();
+      for (const op of wins) {
+        const [nx, ny] = op.wall.out;
+        for (const f of [0, 0.5, 1]) { const off = tExt * f; ctx.moveTo(TX(op.x1 + nx * off), TY(op.y1 + ny * off)); ctx.lineTo(TX(op.x2 + nx * off), TY(op.y2 + ny * off)); }
       }
+      ctx.stroke();
+    }
+    // doors: leaf and swing from the hinge into the room the door opens into
+    const leaves = [], swings = [], marks = [];
+    for (const op of opens) {
+      if (op.kind !== "door" && op.kind !== "balcony_door" && op.kind !== "entry") continue;
+      const [nx, ny] = op.wall.out, [hx, hy] = op.hinge;
+      const atStart = Math.abs(op.x1 - hx) < 1e-6 && Math.abs(op.y1 - hy) < 1e-6;
+      const [fx, fy] = atStart ? [op.x2, op.y2] : [op.x1, op.y1];
+      const dw = op.width, into = byId.get(op.into);
+      const [ix, iy] = into ? [into.cx, into.cy] : [hx - nx, hy - ny];
+      const ux = (fx - hx) / dw, uy = (fy - hy) / dw;
+      let px = -uy, py = ux;
+      if ((ix - hx) * px + (iy - hy) * py < 0) { px = uy; py = -ux; }
+      leaves.push([TX(hx), TY(hy), TX(hx + px * dw), TY(hy + py * dw)]);
+      const a0 = Math.atan2(py, px), a1 = Math.atan2(uy, ux);
+      const delta = ((a1 - a0 + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+      swings.push([TX(hx), TY(hy), dw * scale, a0, a0 + delta, delta < 0]);
+      if (op.kind === "entry") {
+        const mx = (hx + fx) / 2, my = (hy + fy) / 2, s_ = 0.35 * metre;
+        marks.push([[TX(mx + nx * (tExt + 0.05 * metre)), TY(my + ny * (tExt + 0.05 * metre))],
+          [TX(mx + nx * (tExt + s_) + ux * s_ * 0.6), TY(my + ny * (tExt + s_) + uy * s_ * 0.6)],
+          [TX(mx + nx * (tExt + s_) - ux * s_ * 0.6), TY(my + ny * (tExt + s_) - uy * s_ * 0.6)]]);
+      }
+    }
+    if (leaves.length) {
+      ctx.layer?.("A-DOOR");
+      ctx.strokeStyle = P.ink2; ctx.lineWidth = leafW;
+      ctx.beginPath();
+      for (const [x0, y0, x1, y1] of leaves) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }
+      ctx.stroke();
+      ctx.strokeStyle = P.a("ink3", 0.85); ctx.lineWidth = swingW;
+      ctx.beginPath();
+      for (const [cx, cy, r, a0, a1, ccw] of swings) { ctx.moveTo(cx + r * Math.cos(a0), cy + r * Math.sin(a0)); ctx.arc(cx, cy, r, a0, a1, ccw); }
+      ctx.stroke();
+    }
+    for (const [p0, p1, p2] of marks) {
+      ctx.layer?.("A-ENTRY");
+      ctx.fillStyle = fill ? P.accent : P.ink; ctx.beginPath();
+      ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.lineTo(...p2);
+      ctx.closePath(); ctx.fill();
     }
   }
 
@@ -278,13 +301,24 @@ export function paintFrame(ctx, schematic, syn, frame, w, h, P, o = {}) {
     ctx.layer?.("A-FURN");
     const filled = furniture.startsWith("fill"), k = furniture.endsWith("20") ? 0.2 : furniture.endsWith("50") ? 0.5 : 1;
     const tone = fill ? (a) => `rgba(255,255,255,${a})` : (a) => P.a("ink", a), lw = Math.max(0.7, metre * scale * 0.014);
-    if (filled) { ctx.fillStyle = tone(fill ? k : k * 0.25); ctx.strokeStyle = tone(fill ? 0.95 : 0.55); ctx.lineWidth = lw; }
-    else { ctx.strokeStyle = tone(k); ctx.lineWidth = lw; }
-    for (const piece of syn.furniture.slice(0, nFurn)) for (const pr of piece.prims) {
+    if (filled) {
+      // blocks keep one fill per piece, so overlapping parts (pillows on a bed) read as in the prototype
+      ctx.fillStyle = tone(fill ? k : k * 0.25); ctx.strokeStyle = tone(fill ? 0.95 : 0.55); ctx.lineWidth = lw;
+      for (const piece of syn.furniture.slice(0, nFurn)) for (const pr of piece.prims) {
+        ctx.beginPath();
+        if (pr[0] === "rect") { ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale); ctx.fill(); ctx.stroke(); }
+        else if (pr[0] === "circle") { ctx.arc(TX(pr[1]), TY(pr[2]), pr[3] * scale, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+        else { ctx.moveTo(TX(pr[1]), TY(pr[2])); ctx.lineTo(TX(pr[3]), TY(pr[4])); ctx.stroke(); }
+      }
+    } else {
+      ctx.strokeStyle = tone(k); ctx.lineWidth = lw;
       ctx.beginPath();
-      if (pr[0] === "rect") { ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale); if (filled) ctx.fill(); ctx.stroke(); }
-      else if (pr[0] === "circle") { ctx.arc(TX(pr[1]), TY(pr[2]), pr[3] * scale, 0, 2 * Math.PI); if (filled) ctx.fill(); ctx.stroke(); }
-      else { ctx.moveTo(TX(pr[1]), TY(pr[2])); ctx.lineTo(TX(pr[3]), TY(pr[4])); ctx.stroke(); }
+      for (const piece of syn.furniture.slice(0, nFurn)) for (const pr of piece.prims) {
+        if (pr[0] === "rect") ctx.rect(TX(pr[1]), TY(pr[2]), pr[3] * scale, pr[4] * scale);
+        else if (pr[0] === "circle") { const cx = TX(pr[1]), cy = TY(pr[2]), r = pr[3] * scale; ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, 2 * Math.PI); }
+        else { ctx.moveTo(TX(pr[1]), TY(pr[2])); ctx.lineTo(TX(pr[3]), TY(pr[4])); }
+      }
+      ctx.stroke();
     }
   }
 

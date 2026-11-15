@@ -9,7 +9,7 @@
 // front with this plan moving on it. Replace puts the edit into the plan,
 // Previous and Next go through the plans, Save also saves the session, Export
 // writes the plan as drawn, Discard drops the changes.
-import { h, palette, pad2, fmt, toast, confirmAsk, fitCanvas, FONT, MONO, ZONE_LABELS, downloadBlob } from "./common.js";
+import { h, palette, pad2, fmt, toast, confirmAsk, fitCanvas, onResize, FONT, MONO, ZONE_LABELS, downloadBlob } from "./common.js";
 import { GeometryCanvas, MOD_KEY } from "./geometry.js";
 import { paintFrame, originalSynthesis, FURNITURE_STYLES } from "./schematicPaint.js";
 import { overlapsIn } from "../engine/layout.js";
@@ -23,7 +23,9 @@ const PHONE = () => window.matchMedia?.("(max-width: 760px)").matches;
 const LS = (k, d) => { try { const v = localStorage.getItem(`t2p.${k}`); return v == null ? d : JSON.parse(v); } catch { return d; } };
 const SS = (k, v) => { try { localStorage.setItem(`t2p.${k}`, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 const roomName = (id) => String(id).replace(/_/g, " ");
-const OPEN_FIT = 0.7;        // computers open the plan at 70 % of the full fit; phones fill the screen
+const OPEN_FIT = 0.49;       // computers open the plan at about half the full fit, centred; phones fill the screen
+const SIDE_MS = 150;         // while a room is dragged, the panel follows about seven times a second (the plan every frame)
+const setText = (el, t) => { if (el.textContent !== t) el.textContent = t; };   // an unchanged text leaves the layout alone
 const isDoorKey = (e) => (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "d";
 
 /** The door (or balcony door) between rooms a and b in a built plan, or null. */
@@ -107,7 +109,7 @@ class PlanCanvas extends GeometryCanvas {
     const bad = new Set((ed.overlaps || []).flat());
     for (const r of this.rooms) {
       const [x, y, rw, rh] = this.rectPx(r), sel = this.selected.has(r.id);
-      if (bad.has(r.id)) { ctx.save(); ctx.strokeStyle = P.a("bad", 0.7); ctx.lineWidth = 1.5; ctx.setLineDash([5, 3]); ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2); ctx.restore(); }
+      if (bad.has(r.id)) { ctx.save(); ctx.strokeStyle = P.a("ink3", 0.9); ctx.lineWidth = 1.2; ctx.setLineDash([5, 3]); ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2); ctx.restore(); }
       if (sel) { ctx.strokeStyle = P.accent; ctx.lineWidth = 2; ctx.strokeRect(x, y, rw, rh); }
     }
     const sel = this.selectedRooms();
@@ -127,14 +129,15 @@ class PlanCanvas extends GeometryCanvas {
     ctx.fillText("N ↑", 22, 16);
   }
   fitCanvasSafe() {
-    const r = this.cv.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) return {};
-    const dpr = Math.min(window.devicePixelRatio || 1, 3), pw = Math.round(r.width * dpr), ph = Math.round(r.height * dpr);
+    if (!this.size) this.measure();               // the size is measured on resize, not every frame
+    if (!this.size) return {};
+    const [w, h] = this.size;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3), pw = Math.round(w * dpr), ph = Math.round(h * dpr);
     if (this.cv.width !== pw || this.cv.height !== ph) { this.cv.width = pw; this.cv.height = ph; }
     const ctx = this.cv.getContext("2d");
-    ctx.setTransform(pw / r.width, 0, 0, ph / r.height, 0, 0);
-    ctx.clearRect(0, 0, r.width, r.height);
-    return { ctx, w: r.width, h: r.height };
+    ctx.setTransform(pw / w, 0, 0, ph / h, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx, w, h };
   }
 }
 
@@ -205,10 +208,11 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   const bar = h("div.pe-bar", h("span.pe-lab", "Selected room"), barName, h("span.grow"), bFold);
   const selSec = h("div.detail-sec"), checkSec = h("div.detail-sec"), roomsSec = h("div.detail-sec");
   const fbody = h("div.pe-fbody", selSec, checkSec, roomsSec);
-  const pcv = h("canvas");
+  const pcv = h("canvas"), plotEl = h("div.pe-pareto-plot", pcv);
+  let plotSize = null;      // the chart's size, measured when it changes (folded: none)
   const paretoSec = h("div.pe-pareto.detail-sec",
     h("div.h", "PARETO FRONT"),
-    h("div.pe-pareto-plot", pcv),
+    plotEl,
     h("div.pe-legend", h("span.pe-key.me"), "this plan as drawn", h("span.pe-key.zp"), "zone plan", h("span.pe-key.tg"), "target", h("span.pe-key.ot"), "other plans"));
   const float = h("div.pe-float", bar, fbody, paretoSec);
   const body = h("div.pe-body", canvasWrap, float);
@@ -251,18 +255,25 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   }
 
   // ── live rebuild ───────────────────────────────────────────────────
-  let sideTimer = 0;
+  // The plan and V / A follow every frame; the panel's lists follow at most every
+  // SIDE_MS while a room is dragged, and at once when it is let go.
+  let sideRaf = 0, sideWait = 0, sideAt = 0;
+  function queueSide() {
+    clearTimeout(sideWait); cancelAnimationFrame(sideRaf);
+    const run = () => { sideRaf = requestAnimationFrame(() => { sideAt = performance.now(); refreshSide(); }); };
+    const wait = canvas.drag ? SIDE_MS - (performance.now() - sideAt) : 0;
+    if (wait > 0) sideWait = setTimeout(run, wait); else run();
+  }
   ed.changed = () => {
     if (!ed.s) return;
-    ed.view = previewEdit(ed.s, canvas.rooms, store.inputs, canvas.doors);
+    ed.view = previewEdit(ed.s, canvas.rooms, store.inputs, canvas.doors, true);
     ed.overlaps = overlapsIn(canvas.rooms);
     const c = ed.view.scored.computed;
-    vNow.textContent = fmt(c.qvci, 2); aNow.textContent = fmt(c.aqi, 2);
+    setText(vNow, fmt(c.qvci, 2)); setText(aNow, fmt(c.aqi, 2));
     drawPareto();
-    cancelAnimationFrame(sideTimer);
-    sideTimer = requestAnimationFrame(refreshSide);
+    queueSide();
   };
-  ed.onSelect = () => { cancelAnimationFrame(sideTimer); sideTimer = requestAnimationFrame(refreshSide); };
+  ed.onSelect = () => queueSide();
   const dirty = () => !!ed.s && (!sameLayout(canvas.rooms, currentLayout(ed.s)) || !sameDoors(canvas.doors, currentDoors(ed.s)));
 
   // ── Ctrl+D: the door between the two selected rooms goes round its four places,
@@ -286,7 +297,7 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     // a choice that matches where the synthesis would put the door anyway is not kept
     const rest = { ...canvas.doors };
     delete rest[key];
-    const plain = doorBetween(previewEdit(ed.s, canvas.rooms, store.inputs, rest).syn, a, b);
+    const plain = doorBetween(previewEdit(ed.s, canvas.rooms, store.inputs, rest, true).syn, a, b);
     canvas.doors = plain && doorEnd(plain) === end && plain.into === into ? rest : { ...rest, [key]: { end, into } };
     canvas.changed();
   };
@@ -295,10 +306,10 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     if (!ed.view) return;
     const s = ed.s, scored = ed.view.scored, byId = new Map(scored.rooms.map((r) => [r.room_id, r]));
     const sel = canvas.selectedRooms();
-    barName.textContent = sel.length === 1 ? roomName(sel[0].id) : sel.length ? `${sel.length} rooms` : "none";
+    setText(barName, sel.length === 1 ? roomName(sel[0].id) : sel.length ? `${sel.length} rooms` : "none");
     barName.classList.toggle("none", !sel.length);
     const d = dirty();
-    statusEl.textContent = d ? "Changed · not in the plan yet" : ed.s.edit ? "Edited plan" : "As generated";
+    setText(statusEl, d ? "Changed · not in the plan yet" : ed.s.edit ? "Edited plan" : "As generated");
     statusEl.classList.toggle("changed", d);
     bReplace.disabled = bDiscard.disabled = !d;
     if (!isOpen()) return;          // folded: the bar is all there is
@@ -362,10 +373,8 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
   // ── Pareto front: the other plans and samples as in Stage 4, this plan where
   // its as-drawn values are now (moving with every change), its zone plan, the target
   function drawPareto() {
-    if (!isOpen() || !ed.view) return;
-    const r = pcv.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0) return;
-    const { ctx, w, h: H } = fitCanvas(pcv), P = palette();
+    if (!isOpen() || !ed.view || !plotSize) return;
+    const { ctx, w, h: H } = fitCanvas(pcv, plotSize[0], plotSize[1]), P = palette();
     const live = ed.view.scored.computed, zp = (ed.s.orig || ed.s).computed || {}, tg = ed.s.targets || {};
     const pts = store.stage4.schematics.map((s) => (s === ed.s
       ? { plan_index: s.plan_index, computed: { qvci: Number(live.qvci), aqi: Number(live.aqi) }, me: true }
@@ -388,8 +397,10 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     // grid, axes, ticks
     ctx.lineWidth = 0.5; ctx.strokeStyle = P.a("border", 0.6);
     const qt = niceTicks(q0, q1), at = niceTicks(a0, a1);
-    for (const v of qt) { ctx.beginPath(); ctx.moveTo(X(v), T); ctx.lineTo(X(v), T + ph); ctx.stroke(); }
-    for (const v of at) { ctx.beginPath(); ctx.moveTo(L, Y(v)); ctx.lineTo(L + pw, Y(v)); ctx.stroke(); }
+    ctx.beginPath();
+    for (const v of qt) { ctx.moveTo(X(v), T); ctx.lineTo(X(v), T + ph); }
+    for (const v of at) { ctx.moveTo(L, Y(v)); ctx.lineTo(L + pw, Y(v)); }
+    ctx.stroke();
     ctx.strokeStyle = P.ink3; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, T + ph); ctx.lineTo(L + pw, T + ph); ctx.stroke();
     ctx.font = `8.5px ${MONO}`; ctx.fillStyle = P.ink3; ctx.textBaseline = "middle";
@@ -400,8 +411,9 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
     ctx.save(); ctx.translate(7, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.fillText("AQI →", 0, 0); ctx.restore();
     ctx.save(); ctx.beginPath(); ctx.rect(L - 6, T - 6, pw + 12, ph + 12); ctx.clip();
     // the samples of Stage 2 behind everything
+    const dots = (list, r) => { ctx.beginPath(); for (const [x, y] of list) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI); } ctx.fill(); };
     ctx.fillStyle = P.a("ink3", 0.4);
-    for (const p of pool) { ctx.beginPath(); ctx.arc(X(Number(p.qvci)), Y(Number(p.aqi)), 1.3, 0, 2 * Math.PI); ctx.fill(); }
+    dots(pool.map((p) => [X(Number(p.qvci)), Y(Number(p.aqi))]), 1.3);
     // the front through the non-dominated plans, this plan as it is drawn now included
     const front = paretoFrontIndices(pts).map((idx) => pts.find((p) => p.plan_index === idx)).filter(Boolean);
     if (front.length >= 2) {
@@ -409,12 +421,9 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
       ctx.beginPath(); front.forEach((p, i) => (i ? ctx.lineTo(X(p.computed.qvci), Y(p.computed.aqi)) : ctx.moveTo(X(p.computed.qvci), Y(p.computed.aqi)))); ctx.stroke();
       ctx.setLineDash([]);
     }
-    const onFront = new Set(front.map((p) => p.plan_index));
-    for (const p of pts) {
-      if (p.me) continue;
-      ctx.beginPath(); ctx.arc(X(p.computed.qvci), Y(p.computed.aqi), 2.6, 0, 2 * Math.PI);
-      ctx.fillStyle = onFront.has(p.plan_index) ? P.a("accent", 0.6) : P.ink3; ctx.fill();
-    }
+    const onFront = new Set(front.map((p) => p.plan_index)), others = pts.filter((p) => !p.me);
+    ctx.fillStyle = P.ink3; dots(others.filter((p) => !onFront.has(p.plan_index)).map((p) => [X(p.computed.qvci), Y(p.computed.aqi)]), 2.6);
+    ctx.fillStyle = P.a("accent", 0.6); dots(others.filter((p) => onFront.has(p.plan_index)).map((p) => [X(p.computed.qvci), Y(p.computed.aqi)]), 2.6);
     // the target
     if (tg.present) {
       const tx = X(Number(tg.qvci)), ty = Y(Number(tg.aqi));
@@ -517,18 +526,17 @@ export function openPlanEditor(plans, { store, opt, onApply, saveSession }) {
       else if (k === "z" || k === "y") { e.preventDefault(); if (k === "y" || e.shiftKey) canvas.redo(); else canvas.undo(); }
     }
   };
-  const onWinResize = () => drawPareto();
+  const plotRO = onResize(plotEl, () => { const r = pcv.getBoundingClientRect(); plotSize = r.width > 0 && r.height > 0 ? [r.width, r.height] : null; drawPareto(); });
   function close() {
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("pointerdown", outside, true);
-    window.removeEventListener("resize", onWinResize);
-    cancelAnimationFrame(sideTimer);
+    plotRO.disconnect();
+    clearTimeout(sideWait); cancelAnimationFrame(sideRaf);
     canvas.destroy();
     panel.remove();
   }
   window.addEventListener("keydown", onKey);
   window.addEventListener("pointerdown", outside, true);
-  window.addEventListener("resize", onWinResize);
   setOpen(!!LS("peOpen", false), false);
   load(0);
   return { close, canvas };

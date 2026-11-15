@@ -42,8 +42,12 @@ export function h(spec, attrs = {}, ...children) {
 }
 export const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 
-/** Current palette as CSS colour strings plus rgb triplets, read from the theme variables. */
+/** Current palette as CSS colour strings plus rgb triplets, read from the theme variables.
+ *  Kept per theme: reading the variables forces a style pass, and canvases ask on every frame. */
+let PAL = null;
 export function palette() {
+  const theme = document.documentElement.dataset.theme || "";
+  if (PAL && PAL.theme === theme) return PAL.P;
   const cs = getComputedStyle(document.documentElement);
   const out = {};
   for (const k of ["bg", "surface", "surface2", "border", "ink", "ink2", "ink3", "accent", "accent2", "accent-soft", "good", "warn", "bad", "teal"]) {
@@ -52,6 +56,7 @@ export function palette() {
     out[`${k.replace("-", "_")}Rgb`] = v;
   }
   out.a = (key, alpha) => { const v = out[`${key}Rgb`]; return `rgba(${v[0]},${v[1]},${v[2]},${alpha})`; };
+  if (out.inkRgb.length === 3 && out.inkRgb.every(Number.isFinite)) PAL = { theme, P: out };   // only once the stylesheet is in
   return out;
 }
 /** Palette of a named theme (exports draw on white whatever theme is on screen). */

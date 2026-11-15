@@ -47,9 +47,10 @@ function validDoors(doors, ids) {
   return out;
 }
 
-/** Build an edited plan without changing it (the editor's live view and its exports). */
-export function previewEdit(s, rooms, inputs, doors = null) {
-  return buildLayout(s, rooms, originalSynthesis(s), inputs, doors);
+/** Build an edited plan without changing it (the editor's live view and its exports).
+ *  `live` leaves out the frames that replay the synthesis (only the finished plan is shown). */
+export function previewEdit(s, rooms, inputs, doors = null, live = false) {
+  return buildLayout(s, rooms, originalSynthesis(s), inputs, doors, !live);
 }
 
 /** Put edited rooms (and turned doors) into the plan. The plan as generated with no

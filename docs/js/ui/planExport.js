@@ -124,6 +124,18 @@ class Recorder {
   measureText(text) { const f = parseFont(this.st.font); return { width: textWidth(text, f.size, f.bold) }; }
 }
 
+/** A recorded path split into its outlines (a new one at each move). */
+function subpaths(path) {
+  const out = [];
+  let cur = [];
+  for (const seg of path) {
+    if (seg.t === "M" && cur.length) { out.push(cur); cur = []; }
+    cur.push(seg);
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
 /** Sweep of a canvas arc (canvas rules: clockwise unless ccw, full turn when asked). */
 function sweepOf(seg) {
   const TAU = 2 * Math.PI;
@@ -320,18 +332,22 @@ function dxf(s, syn, opt, info) {
       continue;
     }
     if (!keepOp(o.op, L) || !o.path.length) continue;
-    const key = `${L}|${JSON.stringify(o.path)}`;
-    if (seen.has(key)) continue;        // the same outline filled and stroked: once
-    seen.add(key);
-    let pts = [], closed = false;
-    const flush = () => { if (pts.length) poly(L, pts, closed); pts = []; closed = false; };
-    for (const seg of o.path) {
-      if (seg.t === "M") { flush(); pts.push([X(seg.x), Yd(seg.y)]); }
-      else if (seg.t === "L") pts.push([X(seg.x), Yd(seg.y)]);
-      else if (seg.t === "Z") { closed = true; flush(); }
-      else if (seg.t === "A") { flush(); arc(L, seg); }
+    // a path can hold many outlines (paintFrame draws each kind of line as one path);
+    // each outline is written once, also when it was both filled and stroked
+    for (const sub of subpaths(o.path)) {
+      const key = `${L}|${JSON.stringify(sub)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let pts = [], closed = false;
+      const flush = () => { if (pts.length) poly(L, pts, closed); pts = []; closed = false; };
+      for (const seg of sub) {
+        if (seg.t === "M") { flush(); pts.push([X(seg.x), Yd(seg.y)]); }
+        else if (seg.t === "L") pts.push([X(seg.x), Yd(seg.y)]);
+        else if (seg.t === "Z") { closed = true; flush(); }
+        else if (seg.t === "A") { flush(); arc(L, seg); }
+      }
+      flush();
     }
-    flush();
   }
   // title under the plan
   const tl = [ext[0], ext[1] - 0.6];

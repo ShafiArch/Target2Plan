@@ -84,6 +84,9 @@ export class GeometryCanvas {
     this.opts = { allowAdd: true, allowRemove: true, allowClipboard: true, minSide: MIN_SIDE_M, ...options };
     this.cv = h("canvas", { tabindex: 0 });
     wrap.append(this.cv);
+    // the dot grid and the hint line, drawn once into a canvas of their own (not on the
+    // page) and copied in at the start of each frame; redrawn only when the view moves
+    this.bg = document.createElement("canvas");
     this.onChange = onChange;
     this.rooms = [];
     this.units = "m";
@@ -101,7 +104,7 @@ export class GeometryCanvas {
     this.touches = new Map();   // active touch points, for pinch zoom
     this.pinch = null;
     this.guides = [];           // snap guide lines shown while dragging
-    this.snapOn = LS("snap", true);
+    this.snapOn = true;         // snapping is on at every start; Grid, Fill and Text are remembered
     this.gridOn = LS("grid", true);
     this.fillOn = LS("fill", true);       // room colours, or the coloured outlines alone
     this.textOn = LS("text", true);       // room names and sizes
@@ -125,14 +128,25 @@ export class GeometryCanvas {
     const clip = (fn) => (e) => { if (document.activeElement === this.cv && this.opts.allowClipboard) { e.preventDefault(); fn(); } };
     this.docListeners = [["copy", clip(() => this.copy())], ["cut", clip(() => this.cut())], ["paste", clip(() => this.paste())]];
     for (const [t, fn] of this.docListeners) document.addEventListener(t, fn);
-    this.ro = onResize(wrap, () => { if (this.autoCentre) this.centre(); else this.draw(); });
+    // the canvas's size in CSS px, measured when it changes rather than on every frame
+    // (a measurement after a DOM change forces a layout)
+    this.size = null;
+    this.ro = onResize(wrap, () => { this.measure(); if (this.autoCentre) this.centre(); else this.draw(); });
   }
+  measure() { const r = this.cv.getBoundingClientRect(); this.size = r.width > 0 && r.height > 0 ? [r.width, r.height] : null; }
+  /** fitCanvas at the measured size. */
+  fitted() { return this.size ? fitCanvas(this.cv, this.size[0], this.size[1]) : fitCanvas(this.cv); }
 
   /** Detach the document listeners and the resize observer (for canvases that close). */
   destroy() {
     for (const [t, fn] of this.docListeners) document.removeEventListener(t, fn);
     this.ro?.disconnect();
+    if (this.drawRaf) cancelAnimationFrame(this.drawRaf);
   }
+
+  /** Draw at the next frame, once however many changes come before it (wheel, pinch and
+   *  pan events can arrive several times a frame). */
+  drawSoon() { if (!this.drawRaf) this.drawRaf = requestAnimationFrame(() => { this.drawRaf = 0; this.draw(); }); }
 
   // ── keyboard ──────────────────────────────────────────────────────
   key(e) {
@@ -175,7 +189,7 @@ export class GeometryCanvas {
   canRedo() { return this.redoStack.length > 0; }
   undo() { if (!this.undoStack.length) return; this.redoStack.push(this.snapshot()); this.restore(this.undoStack.pop()); this.guides = []; this.onHistory?.(); this.changed(); }
   redo() { if (!this.redoStack.length) return; this.undoStack.push(this.snapshot()); this.restore(this.redoStack.pop()); this.guides = []; this.onHistory?.(); this.changed(); }
-  setSnap(on) { this.snapOn = !!on; SS("snap", this.snapOn); }
+  setSnap(on) { this.snapOn = !!on; }
   setGrid(on) { this.gridOn = !!on; SS("grid", this.gridOn); this.draw(); }
   setFill(on) { this.fillOn = !!on; SS("fill", this.fillOn); this.draw(); }
   setText(on) { this.textOn = !!on; SS("text", this.textOn); this.draw(); }
@@ -194,7 +208,7 @@ export class GeometryCanvas {
     this.pxPerM = s1;
     this.pan = [px - mx * s1 - this.pad, py - my * s1 - this.pad];
     this.autoCentre = false;
-    this.draw();
+    this.drawSoon();
     this.onZoom?.();
   }
   zoomBy(factor) { const r = this.cv.getBoundingClientRect(); this.zoomAt(factor, r.width / 2, r.height / 2); }
@@ -405,7 +419,7 @@ export class GeometryCanvas {
     this.pxPerM = s1;
     this.pan = [mid[0] - this.pinch.anchor[0] * s1 - this.pad, mid[1] - this.pinch.anchor[1] * s1 - this.pad];
     this.autoCentre = false;
-    this.draw(); this.onZoom?.();
+    this.drawSoon(); this.onZoom?.();
     return true;
   }
   touchUp(e) {
@@ -463,13 +477,15 @@ export class GeometryCanvas {
     if (e.pointerType === "touch" && this.touchMove(e)) return;
     const [px, py] = this.local(e);
     if (!this.drag) {
-      if (this.spaceDown) { this.cv.style.cursor = "grab"; return; }
-      const [r, edges] = this.hit(px, py); this.cv.style.cursor = r ? (this.copyKey(e) ? "copy" : this.cursorFor(edges)) : "default"; return;
+      const [r, edges] = this.spaceDown ? [null] : this.hit(px, py);
+      const cur = this.spaceDown ? "grab" : r ? (this.copyKey(e) ? "copy" : this.cursorFor(edges)) : "default";
+      if (this.cv.style.cursor !== cur) this.cv.style.cursor = cur;   // an unchanged cursor leaves the style alone
+      return;
     }
     if (this.drag.mode === "pan") {
       this.pan = [this.drag.pan0[0] + px - this.drag.start[0], this.drag.pan0[1] + py - this.drag.start[1]];
       this.autoCentre = false;
-      this.draw(); return;
+      this.drawSoon(); return;
     }
     if (this.drag.mode === "copy") {
       if (Math.hypot(px - this.drag.start[0], py - this.drag.start[1]) < 4) return;
@@ -553,23 +569,46 @@ export class GeometryCanvas {
     return `${this.gridOn ? `dots every ${stepTxt} · ` : ""}${MOD_KEY} + drag copies · ${MOD_KEY}+C / ${MOD_KEY}+V copy and paste · Alt: no snapping`;
   }
 
-  /** Dot grid (1 m, or 5 m when zoomed far out; 1 ft / 5 ft) and the hint line. */
+  /** Dot grid (1 m, or 5 m when zoomed far out; 1 ft / 5 ft) and the hint line. They are
+   *  drawn into `this.bg` only when something they show has changed (a room being
+   *  dragged does not), then copied onto the canvas: one drawing call per frame. The
+   *  dots themselves are one fill with a pattern of one dot per tile. */
   drawGrid(ctx, P, w, H, alpha = 0.55) {
     const s = this.pxPerM, [ox, oy] = this.origin();
     const stepM = this.units === "m" ? (s >= 9 ? 1 : 5) : s / FT_PER_M >= 12 ? 1 / FT_PER_M : 5 / FT_PER_M;
-    const sp = stepM * s;
-    if (this.gridOn) {
-      ctx.fillStyle = P.a("ink3", alpha);
-      const x0 = ox - Math.ceil(ox / sp) * sp, y0 = oy - Math.ceil(oy / sp) * sp;
-      for (let x = x0; x <= w; x += sp) for (let y = y0; y <= H; y += sp) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 2 * Math.PI); ctx.fill(); }
+    const sp = stepM * s, stepTxt = this.units === "m" ? `${stepM} m` : stepM < 1 ? "1 ft" : "5 ft";
+    const hint = this.hintText(stepTxt), color = P.a("ink3", alpha), dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const key = [w, H, dpr, ox, oy, sp, color, this.gridOn, hint].join("|");
+    if (key !== this.bgKey) { this.bgKey = key; this.paintGrid(w, H, dpr, ox, oy, sp, color, hint, P); }
+    ctx.drawImage(this.bg, 0, 0, w, H);
+  }
+  paintGrid(w, H, dpr, ox, oy, sp, color, hint, P) {
+    const { ctx: b } = fitCanvas(this.bg, w, H);
+    if (this.gridOn && sp > 2) {
+      const k = b.getTransform?.().a || dpr;
+      const T = Math.max(3, Math.round(sp * k));              // tile, in device pixels
+      const tkey = `${T}|${k}|${color}`;
+      if (!this.dots || this.dots.key !== tkey) {
+        const tile = document.createElement("canvas");
+        tile.width = tile.height = T;
+        const tc = tile.getContext("2d");
+        tc.fillStyle = color; tc.beginPath(); tc.arc(T / 2, T / 2, k, 0, 2 * Math.PI); tc.fill();
+        this.dots = { key: tkey, pat: b.createPattern(tile, "repeat") };
+      }
+      // one tile per grid step, its dot on the grid points (the origin plus whole steps)
+      const f = sp / T, tx = ((((ox - sp / 2) % sp) + sp) % sp) - sp, ty = ((((oy - sp / 2) % sp) + sp) % sp) - sp;
+      b.save();
+      b.translate(tx, ty); b.scale(f, f);
+      b.fillStyle = this.dots.pat;
+      b.fillRect(0, 0, (w - tx) / f + T, (H - ty) / f + T);
+      b.restore();
     }
-    ctx.font = `9px ${FONT}`; ctx.fillStyle = P.ink3; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-    const stepTxt = this.units === "m" ? `${stepM} m` : stepM < 1 ? "1 ft" : "5 ft";
-    ctx.fillText(this.hintText(stepTxt), 6, H - 10);
+    b.font = `9px ${FONT}`; b.fillStyle = P.ink3; b.textAlign = "left"; b.textBaseline = "middle";
+    b.fillText(hint, 6, H - 10);
   }
 
   draw() {
-    const { ctx, w, h: H } = fitCanvas(this.cv);
+    const { ctx, w, h: H } = this.fitted();
     const P = palette();
     this.drawGrid(ctx, P, w, H);
     if (!this.rooms.length) {
