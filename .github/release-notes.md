@@ -6,7 +6,7 @@ New in 1.1.0:
 * Drawing canvas: select with Ctrl or Shift + click or a box, Ctrl + drag to copy, copy and paste, duplicate, undo and redo, nudge with the arrow keys, turn a room with R, snap to the edges and centres of the other rooms, and show or hide the grid, the room colours and the room text.
 * Balconies stay on their room when rooms were deleted, pasted or added again while drawing (before, they could float away from the plan).
 * V instead of Q for the view index on the cards and sheets.
-* The Windows installer shows the Target2Plan logo.
+* A new logo, now on the Windows installer too.
 * Version 1.0 stays online at https://shafiarch.github.io/Target2Plan/v1/.
 
 Download the file for your computer from the assets below:

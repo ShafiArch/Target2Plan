@@ -59,7 +59,7 @@ canvas { display: block; }
 }
 .brand { display: flex; align-items: center; gap: 7px; color: var(--accent); font-size: 17px; font-weight: 600; user-select: none; }
 .brand .logo { display: inline-flex; flex: none; }
-.brand .logo svg { display: block; width: 15px; height: 20px; }
+.brand .logo svg { display: block; width: 16.7px; height: 20px; }
 .brand .ver { font-size: 10px; font-weight: 500; color: var(--ink3); border: 1px solid var(--border); border-radius: 8px; padding: 1px 6px; margin-left: 4px; }
 .header-spacer { flex: 1; }
 .hsep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }

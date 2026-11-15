@@ -40,7 +40,7 @@ function setTheme(t) {
 }
 
 // the Target2Plan logo: a bedroom and a living room, turned (docs/icons/logo.svg)
-const LOGO = '<svg viewBox="0 0 75.4 100" aria-hidden="true"><path d="M8.83 15.44 L36.27 0 L75.4 69.56 L47.96 84.99 Z" fill="#a8958f"/><path d="M0 62.18 L25.87 47.63 L47.14 85.45 L21.28 100 Z" fill="#d0706e"/></svg>';
+const LOGO = '<svg viewBox="0 0 83.56 100" aria-hidden="true"><path d="M17.76 20.41 L83.56 80.58 L65.8 100 L0 39.83 Z" fill="#a8958f"/><path d="M36.42 0 L68.91 29.72 L52.19 48.01 L19.69 18.29 Z" fill="#d0706e"/></svg>';
 
 // ── installing and the desktop app ──────────────────────────────────
 // In a browser the site installs as an app (manifest + service worker; the

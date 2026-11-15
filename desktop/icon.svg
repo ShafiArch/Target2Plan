@@ -2,5 +2,5 @@
 <defs><filter id="sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity="0.22"/></filter></defs>
 <rect x="100" y="100" width="824" height="824" rx="185" fill="#ffffff" filter="url(#sh)"/>
 <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#000" stroke-opacity="0.08" stroke-width="2"/>
-<path d="M362.14 332.57 L504.57 252.44 L707.70 613.51 L565.26 693.64 Z" fill="#a8958f"/><path d="M316.30 575.22 L450.58 499.69 L561.03 696.02 L426.75 771.56 Z" fill="#d0706e"/>
+<path d="M387.30 358.37 L728.89 670.75 L636.70 771.56 L295.11 459.18 Z" fill="#a8958f"/><path d="M484.18 252.44 L652.86 406.70 L566.02 501.66 L397.34 347.40 Z" fill="#d0706e"/>
 </svg>
