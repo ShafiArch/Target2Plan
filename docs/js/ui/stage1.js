@@ -108,13 +108,17 @@ export function mountArea(body, { store, runtime, goto }) {
   const bText = toggle("Text", "Show or hide the room names and sizes", () => geom.textOn, (v) => geom.setText(v));
   const editCtl = h("div.zoom-ctl.edit-ctl", { role: "group", "aria-label": "Edit" }, bUndo, bRedo, bSnap, bGrid, bFill, bText);
   geom.onHistory = () => { bUndo.disabled = !geom.canUndo(); bRedo.disabled = !geom.canRedo(); };
-  // units and zoom sit in the draw panel; on phones they move up next to the mode pill
+  // the edit buttons, units and zoom sit in the top row next to the mode buttons; in full
+  // screen drawing on a computer they go with the canvas, next to Exit
   const drawCtl = h("div.draw-ctl", editCtl, h("div.mode-pill", um, uf), zoomCtl);
   const bMin = h("button.btn-ghost.fs-min", { title: "Back to the normal view (Esc)", html: `${FS_EXIT}<span class="long">Exit full screen</span><span class="short">Exit</span>`, on: { click: () => setFull(false) } });
-  const drawTop = h("div.draw-top", roomPalette(geom), drawCtl, bMin);
+  const drawTop = h("div.draw-top", roomPalette(geom), bMin);
   const drawPanel = h("div.draw-panel", drawTop, geomWrap, drawInfo);
   const phone = window.matchMedia ? window.matchMedia("(max-width: 760px)") : null;
-  function placeDrawCtl() { if (phone && phone.matches) modeBar.append(drawCtl); else drawTop.insertBefore(drawCtl, bMin); }
+  function placeDrawCtl() {
+    const withCanvas = drawPanel.classList.contains("fullscreen") && !(phone && phone.matches);
+    if (withCanvas) drawTop.insertBefore(drawCtl, bMin); else modeBar.append(drawCtl);
+  }
   placeDrawCtl();
   phone?.addEventListener("change", placeDrawCtl);
   // Full screen drawing: the canvas fills the window with the room chips, zoom and
@@ -125,6 +129,7 @@ export function mountArea(body, { store, runtime, goto }) {
   function setFull(on) {
     if (drawPanel.classList.contains("fullscreen") === on) return;
     drawPanel.classList.toggle("fullscreen", on);
+    placeDrawCtl();
     if (on) { window.addEventListener("keydown", escKey); if (!(phone && phone.matches)) enterScreen(); }
     else { window.removeEventListener("keydown", escKey); leaveScreen(); }
     requestAnimationFrame(() => geom.centre());

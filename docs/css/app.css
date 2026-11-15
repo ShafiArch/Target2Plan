@@ -205,8 +205,10 @@ pre.payload { margin: 0; font: 10px/1.45 var(--mono); background: var(--surface2
 .counter input { width: 36px; text-align: center; padding: 3px 2px; }
 
 /* ── Stage 1 ───────────────────────────────────────────────────── */
-.mode-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 14px 4px; }
+.mode-bar { flex: none; display: flex; align-items: center; gap: 8px; row-gap: 6px; flex-wrap: wrap; padding: 6px 14px 4px; }
 .mode-bar .hint { flex: 1; min-width: 0; }
+/* drawing: edit buttons, units and zoom on the right of the top row (a line of their own when it is too narrow) */
+.mode-bar .draw-ctl { margin-left: auto; }
 .gen-inputs { flex: none; display: flex; gap: 18px; padding: 4px 14px 6px; border-bottom: 1px solid var(--border); overflow-x: auto; }
 .gen-inputs > .section { flex: 1; min-width: 210px; border-top: none !important; }
 .gen-inputs .section-body { padding-left: 0; }
